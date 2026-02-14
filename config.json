@@ -1,0 +1,34 @@
+{
+  "title": "Ocena jakości rewerbu algorytmicznego",
+  "randomize": true,
+  "webhook": "",
+  "scenarios": [
+    {
+      "name": "Perkusja — Room",
+      "description": "Porównaj reverb typu Room na ścieżce perkusyjnej. Zwróć uwagę na gęstość echa i metaliczność.",
+      "reference": "samples/Snare_LargeHall_ref.wav",
+      "samples": [
+        {
+          "id": "fdn_wojda",
+          "label": "Sample A",
+          "url": "samples/Snare_LargeHall_Poglosie_Mix.wav"
+        },
+        {
+          "id": "hidden_ref",
+          "label": "Sample B",
+          "url": "samples/Snare_LargeHall_ref.wav"
+        },
+        {
+          "id": "orilriver",
+          "label": "Sample E",
+          "url": "samples/Snare_LargeHall_OrilRiver_Mix.wav"
+        },
+        {
+          "id": "anchor",
+          "label": "Sample G",
+          "url": "samples/Snare_LargeHall_anchor.wav"
+        }
+      ]
+    }
+  ]
+}
