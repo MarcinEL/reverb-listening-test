@@ -1,7 +1,7 @@
 {
   "title": "Ocena jakości rewerbu algorytmicznego",
   "randomize": true,
-  "webhook": "",
+  "webhook": "https://script.google.com/macros/s/AKfycbxr1_dclTANVgWiPm5bPPT4py7EfY-Spz45pijJaBj2cHo1JgWwU7520jUlnn_pl4WN/exec",
   "scenarios": [
     {
       "name": "Perkusja — Room",
