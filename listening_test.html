@@ -693,6 +693,72 @@
 
   <script>
     // ═══════════════════════════════════════════════════════════════
+    // VISUAL THEME CONFIGURATION
+    // ═══════════════════════════════════════════════════════════════
+    const VISUAL_THEME = {
+      // 1. Color Palette (syncs with CSS variables)
+      colors: {
+        bg: '#0a0e17',
+        surface: '#131926',
+        surface2: '#1a2235',
+        border: '#2a3550',
+        text: '#e2e8f0',
+        textDim: '#8892a8',
+        accent: '#3b82f6',
+        accentGlow: '#3b82f640',
+        success: '#22c55e',
+        warn: '#f59e0b',
+        danger: '#ef4444',
+      },
+      // 2. Waveform Appearance
+      waveform: {
+        color: '#3b82f650',      // Bar color
+        progressColor: '#3b82f618', // Played part background
+        barWidth: 2,
+        barGap: 1,
+        heightScale: 0.85,       // Max height relative to canvas
+        gradient: false,         // Optional: use gradient instead of solid color
+      },
+      // 3. Playhead & Marker
+      playhead: {
+        color: '#f59e0b',
+        width: 1,
+        shadowColor: '#f59e0b',
+        shadowBlur: 2,
+      },
+      // 4. Play Button
+      playButton: {
+        size: '44px',
+        radius: '50%',
+        borderWidth: '2px', // Color is controlled by 'accent'
+      }
+    };
+
+    function applyTheme() {
+      const root = document.documentElement;
+      Object.entries(VISUAL_THEME.colors).forEach(([key, val]) => {
+        // Convert camelCase to kebab-case (e.g. textDim -> --text-dim)
+        const cssVar = '--' + key.replace(/[A-Z]/g, m => '-' + m.toLowerCase());
+        root.style.setProperty(cssVar, val);
+      });
+
+      // Update Play Button styles dynamically
+      const style = document.createElement('style');
+      style.textContent = `
+        .play-btn {
+          width: ${VISUAL_THEME.playButton.size};
+          height: ${VISUAL_THEME.playButton.size};
+          border-radius: ${VISUAL_THEME.playButton.radius};
+          border-width: ${VISUAL_THEME.playButton.borderWidth};
+        }
+      `;
+      document.head.appendChild(style);
+    }
+
+    // Apply immediately
+    applyTheme();
+
+    // ═══════════════════════════════════════════════════════════════
     // STATE
     // ═══════════════════════════════════════════════════════════════
 
@@ -1302,8 +1368,9 @@
       ctx.clearRect(0, 0, w, h);
 
       // Draw waveform bars
-      const barWidth = 2;
-      const barGap = 1;
+      // Draw waveform bars
+      const barWidth = VISUAL_THEME.waveform.barWidth;
+      const barGap = VISUAL_THEME.waveform.barGap;
       const barStep = barWidth + barGap;
       let maxVal = 0;
       const bars = [];
@@ -1318,9 +1385,9 @@
       }
 
       // Normalize and draw
-      ctx.fillStyle = '#3b82f650';
+      ctx.fillStyle = VISUAL_THEME.waveform.color;
       bars.forEach((val, i) => {
-        const barH = (val / maxVal) * (h * 0.85);
+        const barH = (val / maxVal) * (h * VISUAL_THEME.waveform.heightScale);
         const x = i * barStep;
         const y = (h - barH) / 2;
         ctx.beginPath();
@@ -1365,13 +1432,13 @@
       ctx.save();
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       // Progress overlay
-      ctx.fillStyle = '#3b82f618';
+      ctx.fillStyle = VISUAL_THEME.waveform.progressColor;
       ctx.fillRect(0, 0, x, h);
       // Cursor line
-      ctx.strokeStyle = '#f59e0b';
-      ctx.lineWidth = 2;
-      ctx.shadowColor = '#f59e0b';
-      ctx.shadowBlur = 6;
+      ctx.strokeStyle = VISUAL_THEME.playhead.color;
+      ctx.lineWidth = VISUAL_THEME.playhead.width;
+      ctx.shadowColor = VISUAL_THEME.playhead.shadowColor;
+      ctx.shadowBlur = VISUAL_THEME.playhead.shadowBlur;
       ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke();
       ctx.restore();
 
