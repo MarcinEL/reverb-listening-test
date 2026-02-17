@@ -411,6 +411,32 @@
       text-align: right;
     }
 
+    /* Waveform display */
+    .waveform-container {
+      position: relative;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      margin-bottom: 1rem;
+      overflow: hidden;
+      cursor: pointer;
+    }
+
+    .waveform-canvas {
+      display: block;
+      width: 100%;
+      height: 70px;
+    }
+
+    .waveform-time {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.7rem;
+      color: var(--text-dim);
+      font-family: 'JetBrains Mono', monospace;
+      padding: 0.2rem 0.5rem 0.3rem;
+    }
+
     /* Looping indicator */
     .loop-info {
       display: flex;
@@ -625,6 +651,15 @@
           </div>
         </div>
 
+        <!-- Waveform visualization -->
+        <div class="waveform-container" id="waveform-container" style="display: none;" onclick="waveformSeek(event)">
+          <canvas id="waveform-canvas" class="waveform-canvas"></canvas>
+          <div class="waveform-time">
+            <span id="waveform-time-current">0:00</span>
+            <span id="waveform-time-end">0:00</span>
+          </div>
+        </div>
+
         <!-- Sample players with sliders -->
         <div class="mushra-scale">
           <span>Zła</span><span>Słaba</span><span>Przeciętna</span><span>Dobra</span><span>Doskonała</span>
@@ -685,12 +720,15 @@
       scores: [],           // [scenarioIdx][sampleIdx] = score
       participant: {},
       audioCtx: null,
-      gainNode: null,
-      currentAudio: null,
-      currentSource: null,
+      gainNode: null,       // master volume gain
+      audioPool: {},        // { key: { audio, source, gain, url } }
+      activeKey: null,      // key of currently audible sample
+      isPlaying: false,
       playingId: null,
       isAdmin: true,
       volume: 0.8,
+      waveformCache: {},    // { url: AudioBuffer }
+      animFrame: null,
     };
 
     // ═══════════════════════════════════════════════════════════════
@@ -948,7 +986,8 @@
         grid.appendChild(row);
       });
 
-      stopAudio();
+      cleanupAudioPool();
+      prepareScenarioAudio(config.scenarios[state.currentScenario]);
     }
 
     function updateScore(scenarioIdx, sampleIdx, value, displayIdx) {
@@ -975,8 +1014,10 @@
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // AUDIO PLAYBACK
+    // AUDIO PLAYBACK — Synchronized Pool
     // ═══════════════════════════════════════════════════════════════
+
+    let waveformImageData = null;
 
     function ensureAudioCtx() {
       if (!state.audioCtx) {
@@ -996,97 +1037,266 @@
       }
     }
 
-    function fadeOut(callback) {
-      if (state.gainNode && state.currentAudio) {
-        const now = state.audioCtx.currentTime;
-        state.gainNode.gain.setValueAtTime(state.gainNode.gain.value, now);
-        state.gainNode.gain.linearRampToValueAtTime(0, now + 0.03);
-        setTimeout(() => {
-          _hardStop();
-          // Restore gain for next sample
-          state.gainNode.gain.setValueAtTime(0, state.audioCtx.currentTime);
-          state.gainNode.gain.linearRampToValueAtTime(state.volume, state.audioCtx.currentTime + 0.02);
-          if (callback) callback();
-        }, 35);
-      } else {
-        _hardStop();
-        if (callback) callback();
-      }
-    }
-
-    function _hardStop() {
-      if (state.currentAudio) {
-        state.currentAudio.pause();
-        state.currentAudio.currentTime = 0;
-      }
-      if (state.currentSource) {
-        try { state.currentSource.disconnect(); } catch (e) { }
-        state.currentSource = null;
-      }
-      state.currentAudio = null;
+    function cleanupAudioPool() {
+      cancelAnimationFrame(state.animFrame);
+      Object.values(state.audioPool).forEach(entry => {
+        entry.audio.pause();
+        entry.audio.src = '';
+        try { entry.source.disconnect(); } catch (e) { }
+        try { entry.gain.disconnect(); } catch (e) { }
+      });
+      state.audioPool = {};
+      state.activeKey = null;
+      state.isPlaying = false;
       state.playingId = null;
+      waveformImageData = null;
+
+      const canvas = document.getElementById('waveform-canvas');
+      if (canvas) { const ctx = canvas.getContext('2d'); ctx.clearRect(0, 0, canvas.width, canvas.height); }
+      const container = document.getElementById('waveform-container');
+      if (container) container.style.display = 'none';
+
       document.querySelectorAll('.play-btn').forEach(b => { b.classList.remove('active'); b.textContent = '▶'; });
       document.querySelectorAll('.sample-row').forEach(r => r.classList.remove('playing'));
-      document.getElementById('loop-info').style.display = 'none';
+      const loopInfo = document.getElementById('loop-info');
+      if (loopInfo) loopInfo.style.display = 'none';
     }
 
-    function stopAudio() {
-      if (state.currentAudio) {
-        fadeOut();
-      } else {
-        _hardStop();
-      }
-    }
-
-    function playAudioUrl(url, elementId, rowId) {
-      if (state.playingId === elementId) {
-        fadeOut();
-        return;
-      }
-
+    function prepareScenarioAudio(scenario) {
       ensureAudioCtx();
-
-      const startNew = () => {
+      const entries = [
+        { key: 'ref', url: scenario.reference },
+        ...scenario.samples.map((s, i) => ({ key: `sample-${i}`, url: s.url }))
+      ];
+      entries.forEach(({ key, url }) => {
         const audio = new Audio(url);
         audio.crossOrigin = 'anonymous';
         audio.loop = true;
-
+        audio.preload = 'auto';
         const source = state.audioCtx.createMediaElementSource(audio);
-        source.connect(state.gainNode);
+        const gain = state.audioCtx.createGain();
+        gain.gain.value = 0;
+        source.connect(gain);
+        gain.connect(state.gainNode);
+        state.audioPool[key] = { audio, source, gain, url };
+      });
+    }
 
-        state.gainNode.gain.setValueAtTime(0, state.audioCtx.currentTime);
-        state.gainNode.gain.linearRampToValueAtTime(state.volume, state.audioCtx.currentTime + 0.02);
-
-        audio.play().catch(e => console.warn('Audio play failed:', e));
-        state.currentAudio = audio;
-        state.currentSource = source;
-        state.playingId = elementId;
-
-        const btn = document.getElementById(elementId);
-        if (btn) { btn.classList.add('active'); btn.textContent = '⏸'; }
-        if (rowId) {
-          const row = document.getElementById(rowId);
-          if (row) row.classList.add('playing');
+    function stopAudio() {
+      cancelAnimationFrame(state.animFrame);
+      if (state.isPlaying && state.audioCtx && state.activeKey) {
+        const entry = state.audioPool[state.activeKey];
+        if (entry) {
+          const now = state.audioCtx.currentTime;
+          entry.gain.gain.setValueAtTime(entry.gain.gain.value, now);
+          entry.gain.gain.linearRampToValueAtTime(0, now + 0.03);
         }
-        document.getElementById('loop-info').style.display = 'flex';
-      };
-
-      if (state.currentAudio) {
-        fadeOut(startNew);
+        setTimeout(() => {
+          Object.values(state.audioPool).forEach(e => { e.audio.pause(); e.gain.gain.value = 0; });
+        }, 35);
       } else {
-        startNew();
+        Object.values(state.audioPool).forEach(e => { e.audio.pause(); e.gain.gain.value = 0; });
       }
+      state.activeKey = null;
+      state.isPlaying = false;
+      state.playingId = null;
+      document.querySelectorAll('.play-btn').forEach(b => { b.classList.remove('active'); b.textContent = '▶'; });
+      document.querySelectorAll('.sample-row').forEach(r => r.classList.remove('playing'));
+      const loopInfo = document.getElementById('loop-info');
+      if (loopInfo) loopInfo.style.display = 'none';
+    }
+
+    function switchToSample(key, elementId, rowId) {
+      ensureAudioCtx();
+      const entry = state.audioPool[key];
+      if (!entry) return;
+      const now = state.audioCtx.currentTime;
+
+      // Toggle: same sample → pause/resume
+      if (state.activeKey === key) {
+        if (state.isPlaying) {
+          Object.values(state.audioPool).forEach(e => e.audio.pause());
+          state.isPlaying = false;
+          cancelAnimationFrame(state.animFrame);
+          const btn = document.getElementById(elementId);
+          if (btn) { btn.textContent = '▶'; btn.classList.remove('active'); }
+          document.querySelectorAll('.sample-row').forEach(r => r.classList.remove('playing'));
+          document.getElementById('loop-info').style.display = 'none';
+          return;
+        } else {
+          Object.values(state.audioPool).forEach(e => e.audio.play().catch(() => { }));
+          state.isPlaying = true;
+          const btn = document.getElementById(elementId);
+          if (btn) { btn.classList.add('active'); btn.textContent = '⏸'; }
+          if (rowId) { const row = document.getElementById(rowId); if (row) row.classList.add('playing'); }
+          document.getElementById('loop-info').style.display = 'flex';
+          startPlayheadAnimation();
+          return;
+        }
+      }
+
+      // First play: start all audio elements simultaneously
+      if (!state.isPlaying) {
+        Object.values(state.audioPool).forEach(e => {
+          e.gain.gain.setValueAtTime(0, now);
+          e.audio.play().catch(err => console.warn('play failed:', err));
+        });
+        state.isPlaying = true;
+      }
+
+      // Crossfade: mute others, unmute target
+      Object.entries(state.audioPool).forEach(([k, e]) => {
+        if (k === key) {
+          e.gain.gain.setValueAtTime(e.gain.gain.value, now);
+          e.gain.gain.linearRampToValueAtTime(1.0, now + 0.03);
+        } else if (e.gain.gain.value > 0) {
+          e.gain.gain.setValueAtTime(e.gain.gain.value, now);
+          e.gain.gain.linearRampToValueAtTime(0, now + 0.03);
+        }
+      });
+
+      state.activeKey = key;
+      state.playingId = elementId;
+
+      // Update UI
+      document.querySelectorAll('.play-btn').forEach(b => { b.classList.remove('active'); b.textContent = '▶'; });
+      document.querySelectorAll('.sample-row').forEach(r => r.classList.remove('playing'));
+      const btn = document.getElementById(elementId);
+      if (btn) { btn.classList.add('active'); btn.textContent = '⏸'; }
+      if (rowId) { const row = document.getElementById(rowId); if (row) row.classList.add('playing'); }
+      document.getElementById('loop-info').style.display = 'flex';
+
+      // Waveform
+      const container = document.getElementById('waveform-container');
+      if (container) container.style.display = 'block';
+      loadAndDrawWaveform(entry.url);
+      startPlayheadAnimation();
     }
 
     function playRef() {
-      const sc = config.scenarios[state.currentScenario];
-      playAudioUrl(sc.reference, 'ref-play-btn', 'ref-row');
+      switchToSample('ref', 'ref-play-btn', 'ref-row');
     }
 
     function playSample(scenarioIdx, origIdx, displayIdx) {
-      const sc = config.scenarios[scenarioIdx];
-      const sample = sc.samples[origIdx];
-      playAudioUrl(sample.url, `play-${displayIdx}`, `sample-row-${displayIdx}`);
+      switchToSample(`sample-${origIdx}`, `play-${displayIdx}`, `sample-row-${displayIdx}`);
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // WAVEFORM VISUALIZATION
+    // ═══════════════════════════════════════════════════════════════
+
+    function loadAndDrawWaveform(url) {
+      if (state.waveformCache[url]) { drawWaveformBuffer(state.waveformCache[url]); return; }
+      fetch(url)
+        .then(r => r.arrayBuffer())
+        .then(buf => state.audioCtx.decodeAudioData(buf))
+        .then(audioBuffer => {
+          state.waveformCache[url] = audioBuffer;
+          const active = state.audioPool[state.activeKey];
+          if (active && active.url === url) drawWaveformBuffer(audioBuffer);
+        })
+        .catch(e => console.warn('Waveform decode failed:', e));
+    }
+
+    function drawWaveformBuffer(audioBuffer) {
+      const canvas = document.getElementById('waveform-canvas');
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      const dpr = window.devicePixelRatio || 1;
+      canvas.width = canvas.clientWidth * dpr;
+      canvas.height = canvas.clientHeight * dpr;
+      ctx.scale(dpr, dpr);
+      const w = canvas.clientWidth, h = canvas.clientHeight;
+      const data = audioBuffer.getChannelData(0);
+      const step = Math.ceil(data.length / w);
+      const mid = h / 2;
+
+      ctx.clearRect(0, 0, w, h);
+
+      // Center line
+      ctx.strokeStyle = '#2a355060';
+      ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(0, mid); ctx.lineTo(w, mid); ctx.stroke();
+
+      // Waveform
+      ctx.fillStyle = '#3b82f650';
+      for (let i = 0; i < w; i++) {
+        const start = i * step;
+        let min = 1, max = -1;
+        for (let j = 0; j < step && (start + j) < data.length; j++) {
+          const v = data[start + j];
+          if (v < min) min = v;
+          if (v > max) max = v;
+        }
+        const y1 = mid + min * mid * 0.85;
+        const y2 = mid + max * mid * 0.85;
+        ctx.fillRect(i, y1, 1, Math.max(1, y2 - y1));
+      }
+
+      waveformImageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const timeEl = document.getElementById('waveform-time-end');
+      if (timeEl) timeEl.textContent = formatTime(audioBuffer.duration);
+    }
+
+    function startPlayheadAnimation() {
+      cancelAnimationFrame(state.animFrame);
+      function animate() {
+        if (!state.isPlaying) return;
+        drawPlayhead();
+        state.animFrame = requestAnimationFrame(animate);
+      }
+      state.animFrame = requestAnimationFrame(animate);
+    }
+
+    function drawPlayhead() {
+      const canvas = document.getElementById('waveform-canvas');
+      if (!canvas || !waveformImageData) return;
+      const active = state.audioPool[state.activeKey];
+      if (!active || !active.audio.duration) return;
+
+      const ctx = canvas.getContext('2d');
+      const dpr = window.devicePixelRatio || 1;
+      const w = canvas.clientWidth, h = canvas.clientHeight;
+
+      ctx.putImageData(waveformImageData, 0, 0);
+
+      const progress = active.audio.currentTime / active.audio.duration;
+      const x = progress * w;
+
+      ctx.save();
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      // Played portion
+      ctx.fillStyle = '#3b82f618';
+      ctx.fillRect(0, 0, x, h);
+      // Playhead
+      ctx.strokeStyle = '#f59e0b';
+      ctx.lineWidth = 2;
+      ctx.shadowColor = '#f59e0b';
+      ctx.shadowBlur = 6;
+      ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke();
+      ctx.restore();
+
+      const timeEl = document.getElementById('waveform-time-current');
+      if (timeEl) timeEl.textContent = formatTime(active.audio.currentTime);
+    }
+
+    function waveformSeek(event) {
+      if (!state.isPlaying) return;
+      const canvas = document.getElementById('waveform-canvas');
+      if (!canvas) return;
+      const rect = canvas.getBoundingClientRect();
+      const x = event.clientX - rect.left;
+      const progress = Math.max(0, Math.min(1, x / rect.width));
+      Object.values(state.audioPool).forEach(entry => {
+        if (entry.audio.duration) entry.audio.currentTime = progress * entry.audio.duration;
+      });
+    }
+
+    function formatTime(s) {
+      if (!s || !isFinite(s)) return '0:00';
+      const m = Math.floor(s / 60);
+      const sec = Math.floor(s % 60);
+      return `${m}:${String(sec).padStart(2, '0')}`;
     }
 
     // ═══════════════════════════════════════════════════════════════
