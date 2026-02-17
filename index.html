@@ -1238,8 +1238,18 @@
       if (timeEl) timeEl.textContent = formatTime(audioBuffer.duration);
     }
 
+    // Interpolation state for smooth playhead
+    let _lastAudioTime = 0;
+    let _lastPerfTime = 0;
+
     function startPlayheadAnimation() {
       cancelAnimationFrame(state.animFrame);
+      // Reset interpolation on start/switch
+      const active = state.audioPool[state.activeKey];
+      if (active) {
+        _lastAudioTime = active.audio.currentTime;
+        _lastPerfTime = performance.now();
+      }
       function animate() {
         if (!state.isPlaying) return;
         drawPlayhead();
@@ -1260,7 +1270,20 @@
 
       ctx.putImageData(waveformImageData, 0, 0);
 
-      const progress = active.audio.currentTime / active.audio.duration;
+      // Interpolate for smooth motion between audio.currentTime updates
+      const rawTime = active.audio.currentTime;
+      const now = performance.now();
+      if (Math.abs(rawTime - _lastAudioTime) > 0.001) {
+        // audio.currentTime updated — resync
+        _lastAudioTime = rawTime;
+        _lastPerfTime = now;
+      }
+      const elapsed = (now - _lastPerfTime) / 1000;
+      let smoothTime = _lastAudioTime + elapsed;
+      // Handle loop wrap
+      if (smoothTime > active.audio.duration) smoothTime = smoothTime % active.audio.duration;
+
+      const progress = smoothTime / active.audio.duration;
       const x = progress * w;
 
       ctx.save();
@@ -1277,7 +1300,7 @@
       ctx.restore();
 
       const timeEl = document.getElementById('waveform-time-current');
-      if (timeEl) timeEl.textContent = formatTime(active.audio.currentTime);
+      if (timeEl) timeEl.textContent = formatTime(smoothTime);
     }
 
     function waveformSeek(event) {
