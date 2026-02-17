@@ -683,13 +683,7 @@
           <button class="btn btn-outline" id="btn-prev" onclick="prevScenario()">← Poprzedni</button>
           <button class="btn btn-primary" id="btn-next" onclick="nextScenario()">Następny →</button>
         </div>
-
-        <div class="card">
-          <h2>Podsumowanie wyników</h2>
-          <div class="result-summary" id="result-summary"></div>
-        </div>
       </div>
-
 
     </div>
 
@@ -698,7 +692,6 @@
       <div class="thank-you">
         <div class="checkmark">✓</div>
         <h1>Dziękujemy!</h1>
-        <p class="subtitle">Twój test został zakończony pomyślnie.</p>
         <p class="subtitle">Twój test został zakończony pomyślnie.</p>
 
         <!-- Dynamic status container -->
@@ -1574,7 +1567,7 @@
           await fetch(config.webhook, {
             method: 'POST',
             mode: 'no-cors',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'text/plain' },
             body: JSON.stringify({
               participant: state.participant,
               config_title: config.title,

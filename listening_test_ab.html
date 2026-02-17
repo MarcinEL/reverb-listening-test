@@ -685,19 +685,15 @@
             <div class="thank-you">
                 <div class="checkmark">✓</div>
                 <h1>Dziękujemy!</h1>
-                <p class="subtitle">Twoje odpowiedzi zostały zapisane.</p>
+                <p class="subtitle">Twój test został zakończony pomyślnie.</p>
+
+                <!-- Dynamic status container -->
+                <div id="final-submit-status" style="margin-bottom: 2rem; font-weight: 500; min-height: 24px;"></div>
 
                 <div class="card">
                     <h2>Twoje wyniki</h2>
                     <div class="result-summary" id="result-summary"></div>
                 </div>
-
-                <div id="submit-status" style="margin: 1rem 0;"></div>
-            </div>
-
-            <div class="card">
-                <h2>Podsumowanie wyników</h2>
-                <div class="result-summary" id="result-summary"></div>
             </div>
         </div>
 
@@ -1679,7 +1675,7 @@
         }
 
         async function submitToWebhook(results) {
-            const statusEl = document.getElementById('submit-status');
+            const statusEl = document.getElementById('final-submit-status');
             if (!statusEl) return;
 
             try {
@@ -1689,7 +1685,7 @@
                 await fetch(config.webhook, {
                     method: 'POST',
                     mode: 'no-cors',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'text/plain' },
                     body: JSON.stringify({
                         participant: state.participant,
                         config_title: config.title,
