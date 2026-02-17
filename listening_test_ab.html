@@ -1446,6 +1446,47 @@
             ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
             ctx.clearRect(0, 0, w, h);
 
+            // Hide waveform for Reference/Dry (prevent visual matching)
+            // In AB, 'dry' is the only potential "reference" usually available, but we check 'ref' too.
+            if (state.activeKey === 'ref' || state.activeKey === 'dry') {
+                ctx.fillStyle = VISUAL_THEME.colors.textDim;
+                ctx.font = '14px Inter, sans-serif';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                const label = state.activeKey === 'ref' ? 'Referencja' : 'Dry';
+                ctx.fillText(`Podgląd niedostępny (${label})`, w / 2, h / 2);
+
+                // Store offscreen copy
+                if (!state.offscreenCanvas) {
+                    state.offscreenCanvas = document.createElement('canvas');
+                }
+                state.offscreenCanvas.width = canvas.width;
+                state.offscreenCanvas.height = canvas.height;
+                const offCtx = state.offscreenCanvas.getContext('2d');
+                offCtx.drawImage(canvas, 0, 0);
+
+                // Time display
+                const totalTime = audioBuffer.length / audioBuffer.sampleRate;
+                const totalEl = document.getElementById('waveform-time-total');
+                if (totalEl) totalEl.textContent = formatTime(totalTime);
+
+                // Click to seek
+                canvas.onclick = function (e) {
+                    const rect = canvas.getBoundingClientRect();
+                    const x = e.clientX - rect.left;
+                    const ratio = x / rect.width;
+                    const newPos = Math.floor(ratio * state.totalSamples);
+                    state.currentSample = newPos;
+                    state.lastCallbackSample = newPos;
+                    state.lastCallbackTime = state.audioCtx ? state.audioCtx.currentTime : 0;
+                    if (state.workletNode) {
+                        state.workletNode.port.postMessage({ type: 'seek', position: newPos });
+                    }
+                    drawPlayhead();
+                };
+                return;
+            }
+
             const data = audioBuffer.getChannelData(0);
             const step = Math.ceil(data.length / w);
 

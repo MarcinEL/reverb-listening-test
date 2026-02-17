@@ -1334,6 +1334,46 @@
         ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
         ctx.clearRect(0, 0, w, h);
 
+        // Hide waveform for Reference (prevent visual matching)
+        if (state.activeKey === 'ref') {
+          ctx.fillStyle = VISUAL_THEME.colors.textDim;
+          ctx.font = '14px Inter, sans-serif';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText('Podgląd niedostępny (Referencja)', w / 2, h / 2);
+
+          // Store offscreen copy
+          if (!state.offscreenCanvas) {
+            state.offscreenCanvas = document.createElement('canvas');
+          }
+          state.offscreenCanvas.width = canvas.width;
+          state.offscreenCanvas.height = canvas.height;
+          const offCtx = state.offscreenCanvas.getContext('2d');
+          offCtx.drawImage(canvas, 0, 0);
+
+          // Time display
+          const totalTime = audioBuffer.length / audioBuffer.sampleRate;
+          const totalEl = document.getElementById('waveform-time-total');
+          if (totalEl) totalEl.textContent = formatTime(totalTime);
+
+          // Click to seek (still allow seeking?)
+          canvas.onclick = function (e) {
+            const rect = canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const ratio = x / rect.width;
+            // Update state but don't draw playhead in a revealing way? 
+            // Actually drawPlayhead checks offscreenCanvas, which now has the text.
+            // So it will just redraw the text. 
+            // But we need to update state.currentSample
+            const newPos = Math.floor(ratio * state.totalSamples);
+            state.currentSample = newPos;
+            state.lastCallbackSample = newPos;
+            state.lastCallbackTime = state.audioCtx ? state.audioCtx.currentTime : 0;
+            drawPlayhead();
+          };
+          return;
+        }
+
         // Average channels
         const data = audioBuffer.getChannelData(0);
         const step = Math.ceil(data.length / w);
