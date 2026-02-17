@@ -812,37 +812,43 @@
                 name: "Wokal — FDN vs Valhalla",
                 description: "Wokal żeński z reverbem typu Hall",
                 sample_a: { id: "fdn_wojda", url: "samples/vocal_fdn.wav" },
-                sample_b: { id: "valhalla", url: "samples/vocal_valhalla.wav" }
+                sample_b: { id: "valhalla", url: "samples/vocal_valhalla.wav" },
+                dry: "samples/vocal_dry.wav"
             },
             {
                 name: "Wokal — FDN vs DragonFly",
                 description: "Wokal żeński z reverbem typu Hall",
                 sample_a: { id: "fdn_wojda", url: "samples/vocal_fdn.wav" },
-                sample_b: { id: "dragonfly", url: "samples/vocal_dragonfly.wav" }
+                sample_b: { id: "dragonfly", url: "samples/vocal_dragonfly.wav" },
+                dry: "samples/vocal_dry.wav"
             },
             {
                 name: "Wokal — FDN vs Orilriver",
                 description: "Wokal żeński z reverbem typu Hall",
                 sample_a: { id: "fdn_wojda", url: "samples/vocal_fdn.wav" },
-                sample_b: { id: "orilriver", url: "samples/vocal_orilriver.wav" }
+                sample_b: { id: "orilriver", url: "samples/vocal_orilriver.wav" },
+                dry: "samples/vocal_dry.wav"
             },
             {
                 name: "Perkusja — FDN vs Valhalla",
                 description: "Perkusja z reverbem typu Room",
                 sample_a: { id: "fdn_wojda", url: "samples/drums_fdn.wav" },
-                sample_b: { id: "valhalla", url: "samples/drums_valhalla.wav" }
+                sample_b: { id: "valhalla", url: "samples/drums_valhalla.wav" },
+                dry: "samples/drums_dry.wav"
             },
             {
                 name: "Perkusja — FDN vs DragonFly",
                 description: "Perkusja z reverbem typu Room",
                 sample_a: { id: "fdn_wojda", url: "samples/drums_fdn.wav" },
-                sample_b: { id: "dragonfly", url: "samples/drums_dragonfly.wav" }
+                sample_b: { id: "dragonfly", url: "samples/drums_dragonfly.wav" },
+                dry: "samples/drums_dry.wav"
             },
             {
                 name: "Perkusja — FDN vs Orilriver",
                 description: "Perkusja z reverbem typu Room",
                 sample_a: { id: "fdn_wojda", url: "samples/drums_fdn.wav" },
-                sample_b: { id: "orilriver", url: "samples/drums_orilriver.wav" }
+                sample_b: { id: "orilriver", url: "samples/drums_orilriver.wav" },
+                dry: "samples/drums_dry.wav"
             }
         ];
 
@@ -886,6 +892,12 @@
       </div>
       <div class="form-row">
         <div>
+          <label>URL Dry (opcjonalne)</label>
+          <input type="text" value="${trial.dry || ''}" placeholder="samples/dry.wav" onchange="config.trials[${ti}].dry = this.value; updateConfigJson()" style="font-size: 0.8rem;">
+        </div>
+      </div>
+      <div class="form-row">
+        <div>
           <label>Sample A — ID</label>
           <input type="text" value="${trial.sample_a.id}" onchange="config.trials[${ti}].sample_a.id = this.value; updateConfigJson()" style="font-size: 0.8rem;">
         </div>
@@ -915,6 +927,7 @@
             config.trials.push({
                 name: `Trial ${config.trials.length + 1}`,
                 description: "Opis porównania",
+                dry: "samples/dry.wav",
                 sample_a: { id: "sample_a", url: "samples/a.wav" },
                 sample_b: { id: "sample_b", url: "samples/b.wav" }
             });
@@ -1098,6 +1111,20 @@
         <button class="play-btn" id="play-x" onclick="playTrialSample('x')">▶</button>
       </div>
     `;
+            }
+
+            // Add Dry Button (if available)
+            if (trial.dry) {
+                const dryDiv = document.createElement('div');
+                dryDiv.className = 'player-card';
+                dryDiv.id = 'player-dry';
+                dryDiv.style.marginBottom = '1rem';
+                dryDiv.innerHTML = `
+                  <div class="player-label" style="color: var(--text-dim);">Dry (Suchy)</div>
+                  <button class="play-btn" id="play-dry" onclick="playTrialSample('dry')" style="border-color: var(--text-dim); color: var(--text-dim);">▶</button>
+                `;
+                // Insert before player A
+                playerGroup.insertBefore(dryDiv, playerGroup.firstChild);
             }
 
             // Choice buttons
@@ -1321,6 +1348,10 @@
                 { key: 'a', url: trial.sample_a.url },
                 { key: 'b', url: trial.sample_b.url }
             ];
+
+            if (trial.dry) {
+                entries.push({ key: 'dry', url: trial.dry });
+            }
 
             let loaded = 0;
             const total = entries.length;

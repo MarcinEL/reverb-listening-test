@@ -637,6 +637,17 @@
           </div>
         </div>
 
+        <!-- Dry player -->
+        <div style="margin-bottom: 1.2rem; display:none;" id="dry-container">
+          <div class="sample-row" id="dry-row" style="border: 1px solid var(--text-dim); background: var(--surface2);">
+            <div class="sample-label" style="color: var(--text-dim);">Dry (Suchy)</div>
+            <div>
+              <button class="play-btn" onclick="playDry()" id="dry-play-btn">▶</button>
+            </div>
+            <div></div>
+          </div>
+        </div>
+
         <!-- Waveform visualization -->
         <div class="waveform-container" id="waveform-container" style="display: none;">
           <canvas id="waveform-canvas" style="width:100%;height:64px;cursor:pointer;"></canvas>
@@ -665,86 +676,71 @@
           <label>🔊 Głośność</label>
           <input type="range" min="0" max="100" value="80" id="volume-slider" oninput="setVolume(this.value)">
           <span class="volume-value" id="volume-value">80%</span>
+          <div id="submit-status" style="margin: 1rem 0;"></div>
+        </div>
+
+        <div class="card">
+          <h2>Podsumowanie wyników</h2>
+          <div class="result-summary" id="result-summary"></div>
         </div>
       </div>
 
-      <div class="nav-buttons">
-        <button class="btn btn-outline" id="btn-prev" onclick="prevScenario()">← Poprzedni</button>
-        <button class="btn btn-primary" id="btn-next" onclick="nextScenario()">Następny →</button>
-      </div>
     </div>
 
-    <!-- ═══════ SCREEN: THANK YOU ═══════ -->
-    <div id="screen-done" class="screen">
-      <div class="thank-you">
-        <div class="checkmark">✓</div>
-        <h1>Dziękujemy!</h1>
-        <p class="subtitle">Twoje odpowiedzi zostały zapisane.</p>
-        <div id="submit-status" style="margin: 1rem 0;"></div>
-      </div>
+    <script>
+      // ═══════════════════════════════════════════════════════════════
+      // VISUAL THEME CONFIGURATION
+      // ═══════════════════════════════════════════════════════════════
+      const VISUAL_THEME = {
+        // 1. Color Palette (syncs with CSS variables)
+        colors: {
+          bg: '#0a0e17',
+          surface: '#131926',
+          surface2: '#1a2235',
+          border: '#2a3550',
+          text: '#e2e8f0',
+          textDim: '#8892a8',
+          accent: '#3b82f6',
+          accentGlow: '#3b82f640',
+          success: '#22c55e',
+          warn: '#f59e0b',
+          danger: '#ef4444',
+        },
+        // 2. Waveform Appearance
+        waveform: {
+          color: '#3b82f650',      // Bar color
+          progressColor: '#3b82f618', // Played part background
+          barWidth: 2,
+          barGap: 1,
+          heightScale: 0.85,       // Max height relative to canvas
+          gradient: false,         // Optional: use gradient instead of solid color
+        },
+        // 3. Playhead & Marker
+        playhead: {
+          color: '#f59e0b',
+          width: 1,
+          shadowColor: '#f59e0b',
+          shadowBlur: 2,
+        },
+        // 4. Play Button
+        playButton: {
+          size: '44px',
+          radius: '50%',
+          borderWidth: '2px', // Color is controlled by 'accent'
+        }
+      };
 
-      <div class="card">
-        <h2>Podsumowanie wyników</h2>
-        <div class="result-summary" id="result-summary"></div>
-      </div>
-    </div>
+      function applyTheme() {
+        const root = document.documentElement;
+        Object.entries(VISUAL_THEME.colors).forEach(([key, val]) => {
+          // Convert camelCase to kebab-case (e.g. textDim -> --text-dim)
+          const cssVar = '--' + key.replace(/[A-Z]/g, m => '-' + m.toLowerCase());
+          root.style.setProperty(cssVar, val);
+        });
 
-  </div>
-
-  <script>
-    // ═══════════════════════════════════════════════════════════════
-    // VISUAL THEME CONFIGURATION
-    // ═══════════════════════════════════════════════════════════════
-    const VISUAL_THEME = {
-      // 1. Color Palette (syncs with CSS variables)
-      colors: {
-        bg: '#0a0e17',
-        surface: '#131926',
-        surface2: '#1a2235',
-        border: '#2a3550',
-        text: '#e2e8f0',
-        textDim: '#8892a8',
-        accent: '#3b82f6',
-        accentGlow: '#3b82f640',
-        success: '#22c55e',
-        warn: '#f59e0b',
-        danger: '#ef4444',
-      },
-      // 2. Waveform Appearance
-      waveform: {
-        color: '#3b82f650',      // Bar color
-        progressColor: '#3b82f618', // Played part background
-        barWidth: 2,
-        barGap: 1,
-        heightScale: 0.85,       // Max height relative to canvas
-        gradient: false,         // Optional: use gradient instead of solid color
-      },
-      // 3. Playhead & Marker
-      playhead: {
-        color: '#f59e0b',
-        width: 1,
-        shadowColor: '#f59e0b',
-        shadowBlur: 2,
-      },
-      // 4. Play Button
-      playButton: {
-        size: '44px',
-        radius: '50%',
-        borderWidth: '2px', // Color is controlled by 'accent'
-      }
-    };
-
-    function applyTheme() {
-      const root = document.documentElement;
-      Object.entries(VISUAL_THEME.colors).forEach(([key, val]) => {
-        // Convert camelCase to kebab-case (e.g. textDim -> --text-dim)
-        const cssVar = '--' + key.replace(/[A-Z]/g, m => '-' + m.toLowerCase());
-        root.style.setProperty(cssVar, val);
-      });
-
-      // Update Play Button styles dynamically
-      const style = document.createElement('style');
-      style.textContent = `
+        // Update Play Button styles dynamically
+        const style = document.createElement('style');
+        style.textContent = `
         .play-btn {
           width: ${VISUAL_THEME.playButton.size};
           height: ${VISUAL_THEME.playButton.size};
@@ -752,95 +748,97 @@
           border-width: ${VISUAL_THEME.playButton.borderWidth};
         }
       `;
-      document.head.appendChild(style);
-    }
-
-    // Apply immediately
-    applyTheme();
-
-    // ═══════════════════════════════════════════════════════════════
-    // STATE
-    // ═══════════════════════════════════════════════════════════════
-
-    let config = {
-      title: "Ocena jakości rewerbu algorytmicznego",
-      randomize: true,
-      webhook: "",
-      scenarios: []
-    };
-
-    let state = {
-      currentScenario: 0,
-      scores: [],           // [scenarioIdx][sampleIdx] = score
-      participant: {},
-      audioCtx: null,
-      gainNode: null,       // master volume gain
-      audioPool: {},        // { key: { buffer, url } }  — AudioBuffer objects
-      activeKey: null,      // key of currently audible sample
-      isPlaying: false,
-      playingId: null,
-      isAdmin: true,
-      volume: 0.8,
-      // AudioBuffer engine state
-      scriptNode: null,
-      dummySource: null,
-      currentSample: 0,     // current playback position in samples
-      totalSamples: 0,      // total length in samples
-      sampleRate: 48000,
-      fadingState: 0,       // 0=none, 1=fade-out, 2=fade-in
-      fadingPosition: 0,
-      fadingMaxSamples: 240, // ~5ms at 48kHz
-      fadingInKey: null,     // key of buffer fading in
-      animFrame: null,
-      waveformImageData: null,
-    };
-
-    // ═══════════════════════════════════════════════════════════════
-    // ADMIN: SCENARIO EDITOR
-    // ═══════════════════════════════════════════════════════════════
-
-    // Initialize with a demo scenario
-    const defaultScenarios = [
-      {
-        name: "Wokal żeński — Hall",
-        description: "Porównaj jakość rewerbu typu Hall na wokalu żeńskim. Oceń naturalność, gładkość ogona i brak artefaktów.",
-        reference: "samples/vocal_ref.wav",
-        samples: [
-          { id: "fdn_wojda", label: "Sample A", url: "samples/vocal_fdn.wav" },
-          { id: "hidden_ref", label: "Sample B", url: "samples/vocal_ref.wav" },
-          { id: "dragonfly", label: "Sample C", url: "samples/vocal_dragonfly.wav" },
-          { id: "openverb", label: "Sample D", url: "samples/vocal_openverb.wav" },
-          { id: "orilriver", label: "Sample E", url: "samples/vocal_orilriver.wav" },
-          { id: "valhalla", label: "Sample F", url: "samples/vocal_valhalla.wav" },
-          { id: "anchor", label: "Sample G", url: "samples/vocal_anchor.wav" }
-        ]
-      },
-      {
-        name: "Perkusja — Room",
-        description: "Porównaj reverb typu Room na ścieżce perkusyjnej. Zwróć uwagę na gęstość echa i metaliczność.",
-        reference: "samples/drums_ref.wav",
-        samples: [
-          { id: "fdn_wojda", label: "Sample A", url: "samples/drums_fdn.wav" },
-          { id: "hidden_ref", label: "Sample B", url: "samples/drums_ref.wav" },
-          { id: "dragonfly", label: "Sample C", url: "samples/drums_dragonfly.wav" },
-          { id: "openverb", label: "Sample D", url: "samples/drums_openverb.wav" },
-          { id: "orilriver", label: "Sample E", url: "samples/drums_orilriver.wav" },
-          { id: "valhalla", label: "Sample F", url: "samples/drums_valhalla.wav" },
-          { id: "anchor", label: "Sample G", url: "samples/drums_anchor.wav" }
-        ]
+        document.head.appendChild(style);
       }
-    ];
 
-    config.scenarios = JSON.parse(JSON.stringify(defaultScenarios));
+      // Apply immediately
+      applyTheme();
 
-    function renderScenarioEditor() {
-      const container = document.getElementById('scenarios-editor');
-      container.innerHTML = '';
+      // ═══════════════════════════════════════════════════════════════
+      // STATE
+      // ═══════════════════════════════════════════════════════════════
 
-      config.scenarios.forEach((sc, si) => {
-        const div = document.createElement('div');
-        div.style.cssText = 'background: var(--surface2); border-radius: 10px; padding: 1rem; margin-bottom: 1rem; border: 1px solid var(--border);';
-        div.innerHTML = `
+      let config = {
+        title: "Ocena jakości rewerbu algorytmicznego",
+        randomize: true,
+        webhook: "",
+        scenarios: []
+      };
+
+      let state = {
+        currentScenario: 0,
+        scores: [],           // [scenarioIdx][sampleIdx] = score
+        participant: {},
+        audioCtx: null,
+        gainNode: null,       // master volume gain
+        audioPool: {},        // { key: { buffer, url } }  — AudioBuffer objects
+        activeKey: null,      // key of currently audible sample
+        isPlaying: false,
+        playingId: null,
+        isAdmin: true,
+        volume: 0.8,
+        // AudioBuffer engine state
+        scriptNode: null,
+        dummySource: null,
+        currentSample: 0,     // current playback position in samples
+        totalSamples: 0,      // total length in samples
+        sampleRate: 48000,
+        fadingState: 0,       // 0=none, 1=fade-out, 2=fade-in
+        fadingPosition: 0,
+        fadingMaxSamples: 240, // ~5ms at 48kHz
+        fadingInKey: null,     // key of buffer fading in
+        animFrame: null,
+        waveformImageData: null,
+      };
+
+      // ═══════════════════════════════════════════════════════════════
+      // ADMIN: SCENARIO EDITOR
+      // ═══════════════════════════════════════════════════════════════
+
+      // Initialize with a demo scenario
+      const defaultScenarios = [
+        {
+          name: "Wokal żeński — Hall",
+          description: "Porównaj jakość rewerbu typu Hall na wokalu żeńskim. Oceń naturalność, gładkość ogona i brak artefaktów.",
+          reference: "samples/vocal_ref.wav",
+          dry: "samples/vocal_dry.wav",
+          samples: [
+            { id: "fdn_wojda", label: "Sample A", url: "samples/vocal_fdn.wav" },
+            { id: "hidden_ref", label: "Sample B", url: "samples/vocal_ref.wav" },
+            { id: "dragonfly", label: "Sample C", url: "samples/vocal_dragonfly.wav" },
+            { id: "openverb", label: "Sample D", url: "samples/vocal_openverb.wav" },
+            { id: "orilriver", label: "Sample E", url: "samples/vocal_orilriver.wav" },
+            { id: "valhalla", label: "Sample F", url: "samples/vocal_valhalla.wav" },
+            { id: "anchor", label: "Sample G", url: "samples/vocal_anchor.wav" }
+          ]
+        },
+        {
+          name: "Perkusja — Room",
+          description: "Porównaj reverb typu Room na ścieżce perkusyjnej. Zwróć uwagę na gęstość echa i metaliczność.",
+          reference: "samples/drums_ref.wav",
+          dry: "samples/drums_dry.wav",
+          samples: [
+            { id: "fdn_wojda", label: "Sample A", url: "samples/drums_fdn.wav" },
+            { id: "hidden_ref", label: "Sample B", url: "samples/drums_ref.wav" },
+            { id: "dragonfly", label: "Sample C", url: "samples/drums_dragonfly.wav" },
+            { id: "openverb", label: "Sample D", url: "samples/drums_openverb.wav" },
+            { id: "orilriver", label: "Sample E", url: "samples/drums_orilriver.wav" },
+            { id: "valhalla", label: "Sample F", url: "samples/drums_valhalla.wav" },
+            { id: "anchor", label: "Sample G", url: "samples/drums_anchor.wav" }
+          ]
+        }
+      ];
+
+      config.scenarios = JSON.parse(JSON.stringify(defaultScenarios));
+
+      function renderScenarioEditor() {
+        const container = document.getElementById('scenarios-editor');
+        container.innerHTML = '';
+
+        config.scenarios.forEach((sc, si) => {
+          const div = document.createElement('div');
+          div.style.cssText = 'background: var(--surface2); border-radius: 10px; padding: 1rem; margin-bottom: 1rem; border: 1px solid var(--border);';
+          div.innerHTML = `
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.8rem;">
         <span class="badge badge-step">Scenariusz ${si + 1}</span>
         <button class="btn btn-outline btn-sm" onclick="removeScenario(${si})" style="color: var(--danger); border-color: var(--danger);">✕ Usuń</button>
@@ -853,6 +851,10 @@
         <div>
           <label>URL referencji</label>
           <input type="text" value="${sc.reference}" onchange="config.scenarios[${si}].reference = this.value; updateConfigJson()">
+        </div>
+        <div>
+          <label>URL Dry (opcjonalne)</label>
+          <input type="text" value="${sc.dry || ''}" placeholder="samples/dry.wav" onchange="config.scenarios[${si}].dry = this.value; updateConfigJson()">
         </div>
       </div>
       <div>
@@ -875,170 +877,179 @@
         <button class="btn btn-outline btn-sm" onclick="addSample(${si})" style="margin-top: 0.3rem; font-size: 0.75rem;">+ Próbka</button>
       </div>
     `;
-        container.appendChild(div);
-      });
-
-      updateConfigJson();
-    }
-
-    function addScenario() {
-      config.scenarios.push({
-        name: `Scenariusz ${config.scenarios.length + 1}`,
-        description: "Opis scenariusza testowego",
-        reference: "samples/ref.wav",
-        samples: [
-          { id: "sample_a", label: "Sample A", url: "samples/a.wav" },
-          { id: "sample_b", label: "Sample B", url: "samples/b.wav" }
-        ]
-      });
-      renderScenarioEditor();
-    }
-
-    function removeScenario(idx) {
-      config.scenarios.splice(idx, 1);
-      renderScenarioEditor();
-    }
-
-    function addSample(scenarioIdx) {
-      const n = config.scenarios[scenarioIdx].samples.length;
-      config.scenarios[scenarioIdx].samples.push({
-        id: `sample_${String.fromCharCode(97 + n)}`,
-        label: `Sample ${String.fromCharCode(65 + n)}`,
-        url: ""
-      });
-      renderScenarioEditor();
-    }
-
-    function removeSample(scenarioIdx, sampleIdx) {
-      config.scenarios[scenarioIdx].samples.splice(sampleIdx, 1);
-      renderScenarioEditor();
-    }
-
-    function updateConfigJson() {
-      config.title = document.getElementById('cfg-title')?.value || config.title;
-      config.randomize = document.getElementById('cfg-randomize')?.value === 'true';
-      config.webhook = document.getElementById('cfg-webhook')?.value || '';
-
-      const json = JSON.stringify(config, null, 2);
-      const textarea = document.getElementById('config-json');
-      if (textarea) textarea.value = json;
-    }
-
-    function loadConfigFromJson() {
-      try {
-        const json = document.getElementById('config-json').value;
-        config = JSON.parse(json);
-        document.getElementById('cfg-title').value = config.title || '';
-        document.getElementById('cfg-webhook').value = config.webhook || '';
-        document.getElementById('cfg-randomize').value = config.randomize ? 'true' : 'false';
-        renderScenarioEditor();
-      } catch (e) {
-        alert('Błąd parsowania JSON: ' + e.message);
-      }
-    }
-
-    function exportConfig() {
-      updateConfigJson();
-      navigator.clipboard.writeText(document.getElementById('config-json').value);
-      alert('Konfiguracja skopiowana do schowka!');
-    }
-
-    function downloadConfig() {
-      updateConfigJson();
-      const blob = new Blob([document.getElementById('config-json').value], { type: 'application/json' });
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = 'config.json';
-      a.click();
-    }
-
-    // ═══════════════════════════════════════════════════════════════
-    // TEST FLOW
-    // ═══════════════════════════════════════════════════════════════
-
-    function showScreen(id) {
-      document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-      document.getElementById('screen-' + id).classList.add('active');
-      window.scrollTo(0, 0);
-    }
-
-    function previewAsParticipant() {
-      updateConfigJson();
-      state.isAdmin = true;
-      showScreen('welcome');
-      document.getElementById('test-title').textContent = config.title;
-    }
-
-    function startTest() {
-      updateConfigJson();
-      if (config.scenarios.length === 0) {
-        alert('Dodaj przynajmniej jeden scenariusz!');
-        return;
-      }
-      state.isAdmin = false;
-      showScreen('welcome');
-      document.getElementById('test-title').textContent = config.title;
-    }
-
-    function beginEvaluation() {
-      const pid = document.getElementById('participant-id').value.trim();
-      if (!pid) { alert('Podaj identyfikator uczestnika'); return; }
-
-      state.participant = {
-        id: pid,
-        experience: document.getElementById('participant-exp').value,
-        headphones: document.getElementById('participant-hp').value,
-        notes: document.getElementById('participant-notes').value,
-        timestamp: new Date().toISOString()
-      };
-
-      // Initialize scores
-      state.scores = config.scenarios.map(sc => sc.samples.map(() => 50));
-      state.currentScenario = 0;
-
-      // Shuffle samples within scenarios if needed
-      if (config.randomize) {
-        config.scenarios.forEach(sc => {
-          sc._shuffledOrder = [...Array(sc.samples.length).keys()];
-          for (let i = sc._shuffledOrder.length - 1; i > 0; i--) {
-            const j = Math.floor(Math.random() * (i + 1));
-            [sc._shuffledOrder[i], sc._shuffledOrder[j]] = [sc._shuffledOrder[j], sc._shuffledOrder[i]];
-          }
+          container.appendChild(div);
         });
+
+        updateConfigJson();
       }
 
-      showScreen('test');
-      renderScenario();
-    }
+      function addScenario() {
+        config.scenarios.push({
+          name: `Scenariusz ${config.scenarios.length + 1}`,
+          description: "Opis scenariusza testowego",
+          reference: "samples/ref.wav",
+          dry: "samples/dry.wav",
+          samples: [
+            { id: "sample_a", label: "Sample A", url: "samples/a.wav" },
+            { id: "sample_b", label: "Sample B", url: "samples/b.wav" }
+          ]
+        });
+        renderScenarioEditor();
+      }
 
-    function renderScenario() {
-      const sc = config.scenarios[state.currentScenario];
-      const total = config.scenarios.length;
-      const idx = state.currentScenario;
+      function removeScenario(idx) {
+        config.scenarios.splice(idx, 1);
+        renderScenarioEditor();
+      }
 
-      document.getElementById('step-counter').textContent = `Scenariusz ${idx + 1} / ${total}`;
-      document.getElementById('progress-fill').style.width = `${((idx) / total) * 100}%`;
-      document.getElementById('scenario-title').textContent = sc.name;
-      document.getElementById('scenario-desc').textContent = sc.description;
+      function addSample(scenarioIdx) {
+        const n = config.scenarios[scenarioIdx].samples.length;
+        config.scenarios[scenarioIdx].samples.push({
+          id: `sample_${String.fromCharCode(97 + n)}`,
+          label: `Sample ${String.fromCharCode(65 + n)}`,
+          url: ""
+        });
+        renderScenarioEditor();
+      }
 
-      document.getElementById('btn-prev').style.visibility = idx === 0 ? 'hidden' : 'visible';
-      document.getElementById('btn-next').textContent = idx === total - 1 ? 'Zakończ test ✓' : 'Następny →';
+      function removeSample(scenarioIdx, sampleIdx) {
+        config.scenarios[scenarioIdx].samples.splice(sampleIdx, 1);
+        renderScenarioEditor();
+      }
 
-      // Render sample rows
-      const grid = document.getElementById('sample-grid');
-      grid.innerHTML = '';
+      function updateConfigJson() {
+        config.title = document.getElementById('cfg-title')?.value || config.title;
+        config.randomize = document.getElementById('cfg-randomize')?.value === 'true';
+        config.webhook = document.getElementById('cfg-webhook')?.value || '';
 
-      const order = sc._shuffledOrder || [...Array(sc.samples.length).keys()];
+        const json = JSON.stringify(config, null, 2);
+        const textarea = document.getElementById('config-json');
+        if (textarea) textarea.value = json;
+      }
 
-      order.forEach((origIdx, displayIdx) => {
-        const sample = sc.samples[origIdx];
-        const score = state.scores[idx][origIdx];
-        const letter = String.fromCharCode(65 + displayIdx);
+      function loadConfigFromJson() {
+        try {
+          const json = document.getElementById('config-json').value;
+          config = JSON.parse(json);
+          document.getElementById('cfg-title').value = config.title || '';
+          document.getElementById('cfg-webhook').value = config.webhook || '';
+          document.getElementById('cfg-randomize').value = config.randomize ? 'true' : 'false';
+          renderScenarioEditor();
+        } catch (e) {
+          alert('Błąd parsowania JSON: ' + e.message);
+        }
+      }
 
-        const row = document.createElement('div');
-        row.className = 'sample-row';
-        row.id = `sample-row-${displayIdx}`;
-        row.innerHTML = `
+      function exportConfig() {
+        updateConfigJson();
+        navigator.clipboard.writeText(document.getElementById('config-json').value);
+        alert('Konfiguracja skopiowana do schowka!');
+      }
+
+      function downloadConfig() {
+        updateConfigJson();
+        const blob = new Blob([document.getElementById('config-json').value], { type: 'application/json' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'config.json';
+        a.click();
+      }
+
+      // ═══════════════════════════════════════════════════════════════
+      // TEST FLOW
+      // ═══════════════════════════════════════════════════════════════
+
+      function showScreen(id) {
+        document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+        document.getElementById('screen-' + id).classList.add('active');
+        window.scrollTo(0, 0);
+      }
+
+      function previewAsParticipant() {
+        updateConfigJson();
+        state.isAdmin = true;
+        showScreen('welcome');
+        document.getElementById('test-title').textContent = config.title;
+      }
+
+      function startTest() {
+        updateConfigJson();
+        if (config.scenarios.length === 0) {
+          alert('Dodaj przynajmniej jeden scenariusz!');
+          return;
+        }
+        state.isAdmin = false;
+        showScreen('welcome');
+        document.getElementById('test-title').textContent = config.title;
+      }
+
+      function beginEvaluation() {
+        const pid = document.getElementById('participant-id').value.trim();
+        if (!pid) { alert('Podaj identyfikator uczestnika'); return; }
+
+        state.participant = {
+          id: pid,
+          experience: document.getElementById('participant-exp').value,
+          headphones: document.getElementById('participant-hp').value,
+          notes: document.getElementById('participant-notes').value,
+          timestamp: new Date().toISOString()
+        };
+
+        // Initialize scores
+        state.scores = config.scenarios.map(sc => sc.samples.map(() => 50));
+        state.currentScenario = 0;
+
+        // Shuffle samples within scenarios if needed
+        if (config.randomize) {
+          config.scenarios.forEach(sc => {
+            sc._shuffledOrder = [...Array(sc.samples.length).keys()];
+            for (let i = sc._shuffledOrder.length - 1; i > 0; i--) {
+              const j = Math.floor(Math.random() * (i + 1));
+              [sc._shuffledOrder[i], sc._shuffledOrder[j]] = [sc._shuffledOrder[j], sc._shuffledOrder[i]];
+            }
+          });
+        }
+
+        showScreen('test');
+        renderScenario();
+      }
+
+      function renderScenario() {
+        const sc = config.scenarios[state.currentScenario];
+        const total = config.scenarios.length;
+        const idx = state.currentScenario;
+
+        document.getElementById('step-counter').textContent = `Scenariusz ${idx + 1} / ${total}`;
+        document.getElementById('progress-fill').style.width = `${((idx) / total) * 100}%`;
+        document.getElementById('scenario-title').textContent = sc.name;
+        document.getElementById('scenario-desc').textContent = sc.description;
+
+        document.getElementById('btn-prev').style.visibility = idx === 0 ? 'hidden' : 'visible';
+        document.getElementById('btn-next').textContent = idx === total - 1 ? 'Zakończ test ✓' : 'Następny →';
+
+        // Show/Hide Dry Button
+        const dryContainer = document.getElementById('dry-container');
+        if (sc.dry) {
+          dryContainer.style.display = 'block';
+        } else {
+          dryContainer.style.display = 'none';
+        }
+
+        // Render sample rows
+        const grid = document.getElementById('sample-grid');
+        grid.innerHTML = '';
+
+        const order = sc._shuffledOrder || [...Array(sc.samples.length).keys()];
+
+        order.forEach((origIdx, displayIdx) => {
+          const sample = sc.samples[origIdx];
+          const score = state.scores[idx][origIdx];
+          const letter = String.fromCharCode(65 + displayIdx);
+
+          const row = document.createElement('div');
+          row.className = 'sample-row';
+          row.id = `sample-row-${displayIdx}`;
+          row.innerHTML = `
       <div class="sample-label">Próbka ${letter}</div>
       <div class="slider-container">
         <button class="play-btn" onclick="playSample(${idx}, ${origIdx}, ${displayIdx})" id="play-${displayIdx}">▶</button>
@@ -1047,526 +1058,534 @@
       </div>
       <div class="score-display" id="score-${displayIdx}">${score}</div>
     `;
-        grid.appendChild(row);
-      });
+          grid.appendChild(row);
+        });
 
-      cleanupAudioPool();
-      prepareScenarioAudio(config.scenarios[state.currentScenario]);
-    }
+        cleanupAudioPool();
+        prepareScenarioAudio(config.scenarios[state.currentScenario]);
+      }
 
-    function updateScore(scenarioIdx, sampleIdx, value, displayIdx) {
-      state.scores[scenarioIdx][sampleIdx] = parseInt(value);
-      document.getElementById(`score-${displayIdx}`).textContent = value;
-    }
+      function updateScore(scenarioIdx, sampleIdx, value, displayIdx) {
+        state.scores[scenarioIdx][sampleIdx] = parseInt(value);
+        document.getElementById(`score-${displayIdx}`).textContent = value;
+      }
 
-    function prevScenario() {
-      if (state.currentScenario > 0) {
+      function prevScenario() {
+        if (state.currentScenario > 0) {
+          stopAudio();
+          state.currentScenario--;
+          renderScenario();
+        }
+      }
+
+      function nextScenario() {
         stopAudio();
-        state.currentScenario--;
-        renderScenario();
+        if (state.currentScenario < config.scenarios.length - 1) {
+          state.currentScenario++;
+          renderScenario();
+        } else {
+          finishTest();
+        }
       }
-    }
 
-    function nextScenario() {
-      stopAudio();
-      if (state.currentScenario < config.scenarios.length - 1) {
-        state.currentScenario++;
-        renderScenario();
-      } else {
-        finishTest();
+      // ═══════════════════════════════════════════════════════════════
+      // AUDIO ENGINE — AudioBuffer + ScriptProcessorNode
+      // (sample-accurate position tracking, no <audio> elements)
+      // ═══════════════════════════════════════════════════════════════
+
+      function ensureAudioCtx() {
+        if (!state.audioCtx) {
+          state.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+          state.gainNode = state.audioCtx.createGain();
+          state.gainNode.gain.value = state.volume;
+          state.gainNode.connect(state.audioCtx.destination);
+        }
+        if (state.audioCtx.state === 'suspended') state.audioCtx.resume();
       }
-    }
 
-    // ═══════════════════════════════════════════════════════════════
-    // AUDIO ENGINE — AudioBuffer + ScriptProcessorNode
-    // (sample-accurate position tracking, no <audio> elements)
-    // ═══════════════════════════════════════════════════════════════
-
-    function ensureAudioCtx() {
-      if (!state.audioCtx) {
-        state.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        state.gainNode = state.audioCtx.createGain();
-        state.gainNode.gain.value = state.volume;
-        state.gainNode.connect(state.audioCtx.destination);
+      function setVolume(val) {
+        state.volume = val / 100;
+        document.getElementById('volume-value').textContent = val + '%';
+        if (state.gainNode) {
+          state.gainNode.gain.setTargetAtTime(state.volume, state.audioCtx.currentTime, 0.02);
+        }
       }
-      if (state.audioCtx.state === 'suspended') state.audioCtx.resume();
-    }
 
-    function setVolume(val) {
-      state.volume = val / 100;
-      document.getElementById('volume-value').textContent = val + '%';
-      if (state.gainNode) {
-        state.gainNode.gain.setTargetAtTime(state.volume, state.audioCtx.currentTime, 0.02);
+      function initScriptProcessor() {
+        if (state.scriptNode) return; // already initialized
+        const bufferSize = 8192;
+        // Determine channel count from first available buffer
+        const firstBuf = Object.values(state.audioPool)[0]?.buffer;
+        const channels = firstBuf ? Math.min(firstBuf.numberOfChannels, 2) : 2;
+
+        state.dummySource = state.audioCtx.createBufferSource();
+        state.dummySource.loop = true;
+        state.dummySource.buffer = state.audioCtx.createBuffer(1, bufferSize, state.audioCtx.sampleRate);
+
+        state.scriptNode = state.audioCtx.createScriptProcessor(bufferSize, 1, channels);
+        state.scriptNode.onaudioprocess = processAudio;
+
+        state.dummySource.connect(state.scriptNode);
+        state.scriptNode.connect(state.gainNode);
+        state.dummySource.start();
       }
-    }
 
-    function initScriptProcessor() {
-      if (state.scriptNode) return; // already initialized
-      const bufferSize = 8192;
-      // Determine channel count from first available buffer
-      const firstBuf = Object.values(state.audioPool)[0]?.buffer;
-      const channels = firstBuf ? Math.min(firstBuf.numberOfChannels, 2) : 2;
+      function processAudio(e) {
+        const out = e.outputBuffer;
+        const numChannels = out.numberOfChannels;
 
-      state.dummySource = state.audioCtx.createBufferSource();
-      state.dummySource.loop = true;
-      state.dummySource.buffer = state.audioCtx.createBuffer(1, bufferSize, state.audioCtx.sampleRate);
+        // Not playing or no active buffer → silence
+        if (!state.isPlaying || !state.activeKey || !state.audioPool[state.activeKey]) {
+          for (let ch = 0; ch < numChannels; ch++) {
+            const od = out.getChannelData(ch);
+            for (let i = 0; i < out.length; i++) od[i] = 0;
+          }
+          return;
+        }
 
-      state.scriptNode = state.audioCtx.createScriptProcessor(bufferSize, 1, channels);
-      state.scriptNode.onaudioprocess = processAudio;
+        const activeBuffer = state.audioPool[state.activeKey].buffer;
+        const totalSamples = activeBuffer.length;
 
-      state.dummySource.connect(state.scriptNode);
-      state.scriptNode.connect(state.gainNode);
-      state.dummySource.start();
-    }
-
-    function processAudio(e) {
-      const out = e.outputBuffer;
-      const numChannels = out.numberOfChannels;
-
-      // Not playing or no active buffer → silence
-      if (!state.isPlaying || !state.activeKey || !state.audioPool[state.activeKey]) {
         for (let ch = 0; ch < numChannels; ch++) {
           const od = out.getChannelData(ch);
-          for (let i = 0; i < out.length; i++) od[i] = 0;
-        }
-        return;
-      }
+          const srcCh = ch < activeBuffer.numberOfChannels ? ch : 0;
+          const inputData = activeBuffer.getChannelData(srcCh);
+          let pos = state.currentSample;
 
-      const activeBuffer = state.audioPool[state.activeKey].buffer;
-      const totalSamples = activeBuffer.length;
-
-      for (let ch = 0; ch < numChannels; ch++) {
-        const od = out.getChannelData(ch);
-        const srcCh = ch < activeBuffer.numberOfChannels ? ch : 0;
-        const inputData = activeBuffer.getChannelData(srcCh);
-        let pos = state.currentSample;
-
-        for (let i = 0; i < out.length; i++) {
-          // Crossfade handling
-          if (state.fadingState === 1) { // fade out
-            const ramp = 0.5 * (1 + Math.cos(Math.PI * state.fadingPosition / (state.fadingMaxSamples - 1)));
-            od[i] = inputData[pos] * ramp;
-            if (ch === 0) state.fadingPosition++;
-            if (state.fadingPosition >= state.fadingMaxSamples && ch === numChannels - 1) {
-              if (state.fadingInKey) {
-                state.activeKey = state.fadingInKey;
-                state.fadingInKey = null;
-                state.fadingState = 2;
-                state.fadingPosition = 0;
-              } else {
-                state.isPlaying = false;
+          for (let i = 0; i < out.length; i++) {
+            // Crossfade handling
+            if (state.fadingState === 1) { // fade out
+              const ramp = 0.5 * (1 + Math.cos(Math.PI * state.fadingPosition / (state.fadingMaxSamples - 1)));
+              od[i] = inputData[pos] * ramp;
+              if (ch === 0) state.fadingPosition++;
+              if (state.fadingPosition >= state.fadingMaxSamples && ch === numChannels - 1) {
+                if (state.fadingInKey) {
+                  state.activeKey = state.fadingInKey;
+                  state.fadingInKey = null;
+                  state.fadingState = 2;
+                  state.fadingPosition = 0;
+                } else {
+                  state.isPlaying = false;
+                  state.fadingState = 0;
+                  state.fadingPosition = 0;
+                  for (let j = i + 1; j < out.length; j++) od[j] = 0;
+                  break;
+                }
+              }
+            } else if (state.fadingState === 2) { // fade in
+              const newBuf = state.audioPool[state.activeKey].buffer;
+              const newData = newBuf.getChannelData(ch < newBuf.numberOfChannels ? ch : 0);
+              const ramp = 0.5 * (1 - Math.cos(Math.PI * state.fadingPosition / (state.fadingMaxSamples - 1)));
+              od[i] = newData[pos] * ramp;
+              if (ch === 0) state.fadingPosition++;
+              if (state.fadingPosition >= state.fadingMaxSamples && ch === numChannels - 1) {
                 state.fadingState = 0;
                 state.fadingPosition = 0;
-                for (let j = i + 1; j < out.length; j++) od[j] = 0;
-                break;
               }
+            } else {
+              od[i] = inputData[pos];
             }
-          } else if (state.fadingState === 2) { // fade in
-            const newBuf = state.audioPool[state.activeKey].buffer;
-            const newData = newBuf.getChannelData(ch < newBuf.numberOfChannels ? ch : 0);
-            const ramp = 0.5 * (1 - Math.cos(Math.PI * state.fadingPosition / (state.fadingMaxSamples - 1)));
-            od[i] = newData[pos] * ramp;
-            if (ch === 0) state.fadingPosition++;
-            if (state.fadingPosition >= state.fadingMaxSamples && ch === numChannels - 1) {
-              state.fadingState = 0;
-              state.fadingPosition = 0;
-            }
-          } else {
-            od[i] = inputData[pos];
+
+            if (ch === 0) pos++;
+            // Loop
+            if (pos >= totalSamples) pos = 0;
           }
 
-          if (ch === 0) pos++;
-          // Loop
-          if (pos >= totalSamples) pos = 0;
-        }
-
-        if (ch === numChannels - 1) {
-          state.currentSample = pos;
+          if (ch === numChannels - 1) {
+            state.currentSample = pos;
+          }
         }
       }
-    }
 
-    function cleanupAudioPool() {
-      // Stop script processor
-      if (state.scriptNode) {
-        state.scriptNode.onaudioprocess = null;
-        try { state.scriptNode.disconnect(); } catch (e) { }
-        state.scriptNode = null;
+      function cleanupAudioPool() {
+        // Stop script processor
+        if (state.scriptNode) {
+          state.scriptNode.onaudioprocess = null;
+          try { state.scriptNode.disconnect(); } catch (e) { }
+          state.scriptNode = null;
+        }
+        if (state.dummySource) {
+          try { state.dummySource.disconnect(); } catch (e) { }
+          state.dummySource = null;
+        }
+        cancelAnimationFrame(state.animFrame);
+        state.audioPool = {};
+        state.activeKey = null;
+        state.isPlaying = false;
+        state.playingId = null;
+        state.currentSample = 0;
+        state.totalSamples = 0;
+        state.waveformImageData = null;
+
+        const container = document.getElementById('waveform-container');
+        if (container) container.style.display = 'none';
+
+        document.querySelectorAll('.play-btn').forEach(b => { b.classList.remove('active'); b.textContent = '▶'; });
+        document.querySelectorAll('.sample-row').forEach(r => r.classList.remove('playing'));
+        const loopInfo = document.getElementById('loop-info');
+        if (loopInfo) loopInfo.style.display = 'none';
       }
-      if (state.dummySource) {
-        try { state.dummySource.disconnect(); } catch (e) { }
-        state.dummySource = null;
-      }
-      cancelAnimationFrame(state.animFrame);
-      state.audioPool = {};
-      state.activeKey = null;
-      state.isPlaying = false;
-      state.playingId = null;
-      state.currentSample = 0;
-      state.totalSamples = 0;
-      state.waveformImageData = null;
 
-      const container = document.getElementById('waveform-container');
-      if (container) container.style.display = 'none';
+      function prepareScenarioAudio(scenario) {
+        ensureAudioCtx();
+        const entries = [
+          { key: 'ref', url: scenario.reference },
+          ...scenario.samples.map((s, i) => ({ key: `sample-${i}`, url: s.url }))
+        ];
 
-      document.querySelectorAll('.play-btn').forEach(b => { b.classList.remove('active'); b.textContent = '▶'; });
-      document.querySelectorAll('.sample-row').forEach(r => r.classList.remove('playing'));
-      const loopInfo = document.getElementById('loop-info');
-      if (loopInfo) loopInfo.style.display = 'none';
-    }
+        if (scenario.dry) {
+          entries.push({ key: 'dry', url: scenario.dry });
+        }
 
-    function prepareScenarioAudio(scenario) {
-      ensureAudioCtx();
-      const entries = [
-        { key: 'ref', url: scenario.reference },
-        ...scenario.samples.map((s, i) => ({ key: `sample-${i}`, url: s.url }))
-      ];
+        // Show loading state
+        let loaded = 0;
+        const total = entries.length;
 
-      // Show loading state
-      let loaded = 0;
-      const total = entries.length;
-
-      entries.forEach(({ key, url }) => {
-        const xhr = new XMLHttpRequest();
-        xhr.open('GET', url, true);
-        xhr.responseType = 'arraybuffer';
-        xhr.onload = function () {
-          state.audioCtx.decodeAudioData(xhr.response, function (audioBuffer) {
-            state.audioPool[key] = { buffer: audioBuffer, url: url };
+        entries.forEach(({ key, url }) => {
+          const xhr = new XMLHttpRequest();
+          xhr.open('GET', url, true);
+          xhr.responseType = 'arraybuffer';
+          xhr.onload = function () {
+            state.audioCtx.decodeAudioData(xhr.response, function (audioBuffer) {
+              state.audioPool[key] = { buffer: audioBuffer, url: url };
+              loaded++;
+              if (loaded === total) {
+                onAllBuffersLoaded();
+              }
+            }, function (err) {
+              console.error('Failed to decode:', url, err);
+              loaded++;
+            });
+          };
+          xhr.onerror = function () {
+            console.error('Failed to load:', url);
             loaded++;
-            if (loaded === total) {
-              onAllBuffersLoaded();
-            }
-          }, function (err) {
-            console.error('Failed to decode:', url, err);
-            loaded++;
-          });
-        };
-        xhr.onerror = function () {
-          console.error('Failed to load:', url);
-          loaded++;
-        };
-        xhr.send();
-      });
-    }
-
-    function onAllBuffersLoaded() {
-      // Set total samples from reference (or first available)
-      const refBuf = state.audioPool['ref']?.buffer || Object.values(state.audioPool)[0]?.buffer;
-      if (refBuf) {
-        state.totalSamples = refBuf.length;
-        state.sampleRate = refBuf.sampleRate;
-        state.fadingMaxSamples = Math.floor(state.sampleRate * 0.005); // 5ms crossfade
+          };
+          xhr.send();
+        });
       }
-      // Initialize the ScriptProcessorNode
-      initScriptProcessor();
-    }
 
-    function stopAudio() {
-      if (state.isPlaying) {
-        state.fadingInKey = null;
-        state.fadingState = 1;
-        state.fadingPosition = 0;
+      function onAllBuffersLoaded() {
+        // Set total samples from reference (or first available)
+        const refBuf = state.audioPool['ref']?.buffer || Object.values(state.audioPool)[0]?.buffer;
+        if (refBuf) {
+          state.totalSamples = refBuf.length;
+          state.sampleRate = refBuf.sampleRate;
+          state.fadingMaxSamples = Math.floor(state.sampleRate * 0.005); // 5ms crossfade
+        }
+        // Initialize the ScriptProcessorNode
+        initScriptProcessor();
       }
-      cancelAnimationFrame(state.animFrame);
-      state.activeKey = null;
-      state.isPlaying = false;
-      state.playingId = null;
-      document.querySelectorAll('.play-btn').forEach(b => { b.classList.remove('active'); b.textContent = '▶'; });
-      document.querySelectorAll('.sample-row').forEach(r => r.classList.remove('playing'));
-      const loopInfo = document.getElementById('loop-info');
-      if (loopInfo) loopInfo.style.display = 'none';
-    }
 
-    function switchToSample(key, elementId, rowId) {
-      ensureAudioCtx();
-      const entry = state.audioPool[key];
-      if (!entry || !entry.buffer) return;
-
-      // Toggle: same sample → pause/resume
-      if (state.activeKey === key) {
+      function stopAudio() {
         if (state.isPlaying) {
-          state.isPlaying = false;
-          cancelAnimationFrame(state.animFrame);
-          const btn = document.getElementById(elementId);
-          if (btn) { btn.textContent = '▶'; btn.classList.remove('active'); }
-          document.querySelectorAll('.sample-row').forEach(r => r.classList.remove('playing'));
-          document.getElementById('loop-info').style.display = 'none';
-          return;
-        } else {
-          state.isPlaying = true;
-          const btn = document.getElementById(elementId);
-          if (btn) { btn.classList.add('active'); btn.textContent = '⏸'; }
-          if (rowId) { const row = document.getElementById(rowId); if (row) row.classList.add('playing'); }
-          document.getElementById('loop-info').style.display = 'flex';
-          startPlayheadAnimation();
-          return;
+          state.fadingInKey = null;
+          state.fadingState = 1;
+          state.fadingPosition = 0;
         }
+        cancelAnimationFrame(state.animFrame);
+        state.activeKey = null;
+        state.isPlaying = false;
+        state.playingId = null;
+        document.querySelectorAll('.play-btn').forEach(b => { b.classList.remove('active'); b.textContent = '▶'; });
+        document.querySelectorAll('.sample-row').forEach(r => r.classList.remove('playing'));
+        const loopInfo = document.getElementById('loop-info');
+        if (loopInfo) loopInfo.style.display = 'none';
       }
 
-      // Crossfade to new sample (same position maintained)
-      if (state.isPlaying && state.activeKey) {
-        state.fadingInKey = key;
-        state.fadingState = 1;
-        state.fadingPosition = 0;
-      } else {
-        state.activeKey = key;
-        state.isPlaying = true;
-        state.fadingState = 2;
-        state.fadingPosition = 0;
-      }
+      function switchToSample(key, elementId, rowId) {
+        ensureAudioCtx();
+        const entry = state.audioPool[key];
+        if (!entry || !entry.buffer) return;
 
-      state.playingId = elementId;
-
-      // Update UI
-      document.querySelectorAll('.play-btn').forEach(b => { b.classList.remove('active'); b.textContent = '▶'; });
-      document.querySelectorAll('.sample-row').forEach(r => r.classList.remove('playing'));
-      const btn = document.getElementById(elementId);
-      if (btn) { btn.classList.add('active'); btn.textContent = '⏸'; }
-      if (rowId) { const row = document.getElementById(rowId); if (row) row.classList.add('playing'); }
-      document.getElementById('loop-info').style.display = 'flex';
-
-      // Show waveform
-      const container = document.getElementById('waveform-container');
-      if (container) container.style.display = 'block';
-      drawWaveform(entry.buffer);
-      startPlayheadAnimation();
-    }
-
-    function playRef() {
-      switchToSample('ref', 'ref-play-btn', 'ref-row');
-    }
-
-    function playSample(scenarioIdx, origIdx, displayIdx) {
-      switchToSample(`sample-${origIdx}`, `play-${displayIdx}`, `sample-row-${displayIdx}`);
-    }
-
-    // ═══════════════════════════════════════════════════════════════
-    // WAVEFORM VISUALIZATION (Canvas — sample-accurate)
-    // ═══════════════════════════════════════════════════════════════
-
-    function formatTime(seconds) {
-      const m = Math.floor(seconds / 60);
-      const s = Math.floor(seconds % 60);
-      return `${m}:${s.toString().padStart(2, '0')}`;
-    }
-
-    function drawWaveform(audioBuffer) {
-      const canvas = document.getElementById('waveform-canvas');
-      if (!canvas || !audioBuffer) return;
-      const dpr = window.devicePixelRatio || 1;
-      const w = canvas.clientWidth;
-      const h = canvas.clientHeight;
-      canvas.width = w * dpr;
-      canvas.height = h * dpr;
-      const ctx = canvas.getContext('2d');
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-
-      // Average channels
-      const data = audioBuffer.getChannelData(0);
-      const step = Math.ceil(data.length / w);
-      ctx.clearRect(0, 0, w, h);
-
-      // Draw waveform bars
-      // Draw waveform bars
-      const barWidth = VISUAL_THEME.waveform.barWidth;
-      const barGap = VISUAL_THEME.waveform.barGap;
-      const barStep = barWidth + barGap;
-      let maxVal = 0;
-      const bars = [];
-      for (let x = 0; x < w; x += barStep) {
-        const start = Math.floor((x / w) * data.length);
-        const end = Math.min(start + step * barStep, data.length);
-        let sum = 0;
-        for (let j = start; j < end; j++) sum += Math.abs(data[j]);
-        const avg = sum / (end - start);
-        bars.push(avg);
-        if (avg > maxVal) maxVal = avg;
-      }
-
-      // Normalize and draw
-      ctx.fillStyle = VISUAL_THEME.waveform.color;
-      bars.forEach((val, i) => {
-        const barH = (val / maxVal) * (h * VISUAL_THEME.waveform.heightScale);
-        const x = i * barStep;
-        const y = (h - barH) / 2;
-        ctx.beginPath();
-        ctx.roundRect(x, y, barWidth, barH, 2);
-        ctx.fill();
-      });
-
-      // Cache static waveform
-      state.waveformImageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-
-      // Time display
-      const totalTime = audioBuffer.length / audioBuffer.sampleRate;
-      const totalEl = document.getElementById('waveform-time-total');
-      if (totalEl) totalEl.textContent = formatTime(totalTime);
-
-      // Click to seek
-      canvas.onclick = function (e) {
-        const rect = canvas.getBoundingClientRect();
-        const x = e.clientX - rect.left;
-        const ratio = x / rect.width;
-        state.currentSample = Math.floor(ratio * state.totalSamples);
-        drawPlayhead();
-      };
-    }
-
-    function drawPlayhead() {
-      const canvas = document.getElementById('waveform-canvas');
-      if (!canvas || !state.waveformImageData) return;
-      if (!state.totalSamples) return;
-
-      const ctx = canvas.getContext('2d');
-      const dpr = window.devicePixelRatio || 1;
-      const w = canvas.clientWidth;
-      const h = canvas.clientHeight;
-
-      // Restore cached waveform
-      ctx.putImageData(state.waveformImageData, 0, 0);
-
-      const progress = state.currentSample / state.totalSamples;
-      const x = progress * w;
-
-      ctx.save();
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      // Progress overlay
-      ctx.fillStyle = VISUAL_THEME.waveform.progressColor;
-      ctx.fillRect(0, 0, x, h);
-      // Cursor line
-      ctx.strokeStyle = VISUAL_THEME.playhead.color;
-      ctx.lineWidth = VISUAL_THEME.playhead.width;
-      ctx.shadowColor = VISUAL_THEME.playhead.shadowColor;
-      ctx.shadowBlur = VISUAL_THEME.playhead.shadowBlur;
-      ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke();
-      ctx.restore();
-
-      // Time display
-      const currentTime = state.currentSample / state.sampleRate;
-      const timeEl = document.getElementById('waveform-time-current');
-      if (timeEl) timeEl.textContent = formatTime(currentTime);
-    }
-
-    function startPlayheadAnimation() {
-      cancelAnimationFrame(state.animFrame);
-      function animate() {
-        if (!state.isPlaying) return;
-        drawPlayhead();
-        state.animFrame = requestAnimationFrame(animate);
-      }
-      state.animFrame = requestAnimationFrame(animate);
-    }
-
-    // ═══════════════════════════════════════════════════════════════
-    // RESULTS
-    // ═══════════════════════════════════════════════════════════════
-
-    function finishTest() {
-      stopAudio();
-      showScreen('done');
-
-      const results = buildResults();
-      renderResultsSummary(results);
-
-      // Submit to webhook if configured
-      if (config.webhook) {
-        submitToWebhook(results);
-      }
-    }
-
-    function buildResults() {
-      const rows = [];
-      config.scenarios.forEach((sc, si) => {
-        sc.samples.forEach((sample, ssi) => {
-          rows.push({
-            participant_id: state.participant.id,
-            experience: state.participant.experience,
-            headphones: state.participant.headphones,
-            timestamp: state.participant.timestamp,
-            scenario: sc.name,
-            sample_id: sample.id,
-            sample_label: sample.label,
-            score: state.scores[si][ssi]
-          });
-        });
-      });
-      return rows;
-    }
-
-    function renderResultsSummary(results) {
-      let summary = `Uczestnik: ${state.participant.id}\n`;
-      summary += `Doświadczenie: ${state.participant.experience}\n`;
-      summary += `Data: ${state.participant.timestamp}\n\n`;
-
-      let currentScenario = '';
-      results.forEach(r => {
-        if (r.scenario !== currentScenario) {
-          currentScenario = r.scenario;
-          summary += `\n── ${currentScenario} ──\n`;
-        }
-        const bar = '█'.repeat(Math.round(r.score / 5)) + '░'.repeat(20 - Math.round(r.score / 5));
-        summary += `  ${r.sample_id.padEnd(15)} ${bar} ${String(r.score).padStart(3)}/100\n`;
-      });
-
-      document.getElementById('result-summary').textContent = summary;
-    }
-
-    async function submitToWebhook(results) {
-      const statusEl = document.getElementById('submit-status');
-      try {
-        statusEl.innerHTML = '<span style="color: var(--warn);">Wysyłanie wyników...</span>';
-        const response = await fetch(config.webhook, {
-          method: 'POST',
-          mode: 'no-cors',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            participant: state.participant,
-            config_title: config.title,
-            results: results
-          })
-        });
-        statusEl.innerHTML = '<span style="color: var(--success);">✓ Wyniki wysłane pomyślnie</span>';
-      } catch (e) {
-        statusEl.innerHTML = `<span style="color: var(--danger);">Błąd wysyłania: ${e.message}. Pobierz wyniki ręcznie.</span>`;
-      }
-    }
-
-    // Download functions removed from participant view.
-    // Results are submitted automatically via webhook.
-
-    // ═══════════════════════════════════════════════════════════════
-    // STARTUP: check URL params for direct participant mode
-    // ═══════════════════════════════════════════════════════════════
-
-    async function init() {
-      // Check if config.json exists (for GitHub Pages deployment)
-      const params = new URLSearchParams(window.location.search);
-
-      if (params.has('participant')) {
-        // Direct link for participants: load config and go to welcome screen
-        try {
-          const configUrl = params.get('config') || 'config.json';
-          const resp = await fetch(configUrl);
-          if (resp.ok) {
-            config = await resp.json();
-            state.isAdmin = false;
-            showScreen('welcome');
-            document.getElementById('test-title').textContent = config.title;
+        // Toggle: same sample → pause/resume
+        if (state.activeKey === key) {
+          if (state.isPlaying) {
+            state.isPlaying = false;
+            cancelAnimationFrame(state.animFrame);
+            const btn = document.getElementById(elementId);
+            if (btn) { btn.textContent = '▶'; btn.classList.remove('active'); }
+            document.querySelectorAll('.sample-row').forEach(r => r.classList.remove('playing'));
+            document.getElementById('loop-info').style.display = 'none';
+            return;
+          } else {
+            state.isPlaying = true;
+            const btn = document.getElementById(elementId);
+            if (btn) { btn.classList.add('active'); btn.textContent = '⏸'; }
+            if (rowId) { const row = document.getElementById(rowId); if (row) row.classList.add('playing'); }
+            document.getElementById('loop-info').style.display = 'flex';
+            startPlayheadAnimation();
             return;
           }
-        } catch (e) {
-          console.warn('Could not load config.json:', e);
+        }
+
+        // Crossfade to new sample (same position maintained)
+        if (state.isPlaying && state.activeKey) {
+          state.fadingInKey = key;
+          state.fadingState = 1;
+          state.fadingPosition = 0;
+        } else {
+          state.activeKey = key;
+          state.isPlaying = true;
+          state.fadingState = 2;
+          state.fadingPosition = 0;
+        }
+
+        state.playingId = elementId;
+
+        // Update UI
+        document.querySelectorAll('.play-btn').forEach(b => { b.classList.remove('active'); b.textContent = '▶'; });
+        document.querySelectorAll('.sample-row').forEach(r => r.classList.remove('playing'));
+        const btn = document.getElementById(elementId);
+        if (btn) { btn.classList.add('active'); btn.textContent = '⏸'; }
+        if (rowId) { const row = document.getElementById(rowId); if (row) row.classList.add('playing'); }
+        document.getElementById('loop-info').style.display = 'flex';
+
+        // Show waveform
+        const container = document.getElementById('waveform-container');
+        if (container) container.style.display = 'block';
+        drawWaveform(entry.buffer);
+        startPlayheadAnimation();
+      }
+
+      function playRef() {
+        switchToSample('ref', 'ref-play-btn', 'ref-row');
+      }
+
+      function playDry() {
+        switchToSample('dry', 'dry-play-btn', 'dry-row');
+      }
+
+      function playSample(scenarioIdx, origIdx, displayIdx) {
+        switchToSample(`sample-${origIdx}`, `play-${displayIdx}`, `sample-row-${displayIdx}`);
+      }
+
+      // ═══════════════════════════════════════════════════════════════
+      // WAVEFORM VISUALIZATION (Canvas — sample-accurate)
+      // ═══════════════════════════════════════════════════════════════
+
+      function formatTime(seconds) {
+        const m = Math.floor(seconds / 60);
+        const s = Math.floor(seconds % 60);
+        return `${m}:${s.toString().padStart(2, '0')}`;
+      }
+
+      function drawWaveform(audioBuffer) {
+        const canvas = document.getElementById('waveform-canvas');
+        if (!canvas || !audioBuffer) return;
+        const dpr = window.devicePixelRatio || 1;
+        const w = canvas.clientWidth;
+        const h = canvas.clientHeight;
+        canvas.width = w * dpr;
+        canvas.height = h * dpr;
+        const ctx = canvas.getContext('2d');
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+        // Average channels
+        const data = audioBuffer.getChannelData(0);
+        const step = Math.ceil(data.length / w);
+        ctx.clearRect(0, 0, w, h);
+
+        // Draw waveform bars
+        // Draw waveform bars
+        const barWidth = VISUAL_THEME.waveform.barWidth;
+        const barGap = VISUAL_THEME.waveform.barGap;
+        const barStep = barWidth + barGap;
+        let maxVal = 0;
+        const bars = [];
+        for (let x = 0; x < w; x += barStep) {
+          const start = Math.floor((x / w) * data.length);
+          const end = Math.min(start + step * barStep, data.length);
+          let sum = 0;
+          for (let j = start; j < end; j++) sum += Math.abs(data[j]);
+          const avg = sum / (end - start);
+          bars.push(avg);
+          if (avg > maxVal) maxVal = avg;
+        }
+
+        // Normalize and draw
+        ctx.fillStyle = VISUAL_THEME.waveform.color;
+        bars.forEach((val, i) => {
+          const barH = (val / maxVal) * (h * VISUAL_THEME.waveform.heightScale);
+          const x = i * barStep;
+          const y = (h - barH) / 2;
+          ctx.beginPath();
+          ctx.roundRect(x, y, barWidth, barH, 2);
+          ctx.fill();
+        });
+
+        // Cache static waveform
+        state.waveformImageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+
+        // Time display
+        const totalTime = audioBuffer.length / audioBuffer.sampleRate;
+        const totalEl = document.getElementById('waveform-time-total');
+        if (totalEl) totalEl.textContent = formatTime(totalTime);
+
+        // Click to seek
+        canvas.onclick = function (e) {
+          const rect = canvas.getBoundingClientRect();
+          const x = e.clientX - rect.left;
+          const ratio = x / rect.width;
+          state.currentSample = Math.floor(ratio * state.totalSamples);
+          drawPlayhead();
+        };
+      }
+
+      function drawPlayhead() {
+        const canvas = document.getElementById('waveform-canvas');
+        if (!canvas || !state.waveformImageData) return;
+        if (!state.totalSamples) return;
+
+        const ctx = canvas.getContext('2d');
+        const dpr = window.devicePixelRatio || 1;
+        const w = canvas.clientWidth;
+        const h = canvas.clientHeight;
+
+        // Restore cached waveform
+        ctx.putImageData(state.waveformImageData, 0, 0);
+
+        const progress = state.currentSample / state.totalSamples;
+        const x = progress * w;
+
+        ctx.save();
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        // Progress overlay
+        ctx.fillStyle = VISUAL_THEME.waveform.progressColor;
+        ctx.fillRect(0, 0, x, h);
+        // Cursor line
+        ctx.strokeStyle = VISUAL_THEME.playhead.color;
+        ctx.lineWidth = VISUAL_THEME.playhead.width;
+        ctx.shadowColor = VISUAL_THEME.playhead.shadowColor;
+        ctx.shadowBlur = VISUAL_THEME.playhead.shadowBlur;
+        ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke();
+        ctx.restore();
+
+        // Time display
+        const currentTime = state.currentSample / state.sampleRate;
+        const timeEl = document.getElementById('waveform-time-current');
+        if (timeEl) timeEl.textContent = formatTime(currentTime);
+      }
+
+      function startPlayheadAnimation() {
+        cancelAnimationFrame(state.animFrame);
+        function animate() {
+          if (!state.isPlaying) return;
+          drawPlayhead();
+          state.animFrame = requestAnimationFrame(animate);
+        }
+        state.animFrame = requestAnimationFrame(animate);
+      }
+
+      // ═══════════════════════════════════════════════════════════════
+      // RESULTS
+      // ═══════════════════════════════════════════════════════════════
+
+      function finishTest() {
+        stopAudio();
+        showScreen('done');
+
+        const results = buildResults();
+        renderResultsSummary(results);
+
+        // Submit to webhook if configured
+        if (config.webhook) {
+          submitToWebhook(results);
         }
       }
 
-      // Admin mode
-      // Admin mode
-      renderScenarioEditor();
-    }
+      function buildResults() {
+        const rows = [];
+        config.scenarios.forEach((sc, si) => {
+          sc.samples.forEach((sample, ssi) => {
+            rows.push({
+              participant_id: state.participant.id,
+              experience: state.participant.experience,
+              headphones: state.participant.headphones,
+              timestamp: state.participant.timestamp,
+              scenario: sc.name,
+              sample_id: sample.id,
+              sample_label: sample.label,
+              score: state.scores[si][ssi]
+            });
+          });
+        });
+        return rows;
+      }
 
-    init();
-  </script>
+      function renderResultsSummary(results) {
+        let summary = `Uczestnik: ${state.participant.id}\n`;
+        summary += `Doświadczenie: ${state.participant.experience}\n`;
+        summary += `Data: ${state.participant.timestamp}\n\n`;
+
+        let currentScenario = '';
+        results.forEach(r => {
+          if (r.scenario !== currentScenario) {
+            currentScenario = r.scenario;
+            summary += `\n── ${currentScenario} ──\n`;
+          }
+          const bar = '█'.repeat(Math.round(r.score / 5)) + '░'.repeat(20 - Math.round(r.score / 5));
+          summary += `  ${r.sample_id.padEnd(15)} ${bar} ${String(r.score).padStart(3)}/100\n`;
+        });
+
+        document.getElementById('result-summary').textContent = summary;
+      }
+
+      async function submitToWebhook(results) {
+        const statusEl = document.getElementById('submit-status');
+        try {
+          statusEl.innerHTML = '<span style="color: var(--warn);">Wysyłanie wyników...</span>';
+          const response = await fetch(config.webhook, {
+            method: 'POST',
+            mode: 'no-cors',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              participant: state.participant,
+              config_title: config.title,
+              results: results
+            })
+          });
+          statusEl.innerHTML = '<span style="color: var(--success);">✓ Wyniki wysłane pomyślnie</span>';
+        } catch (e) {
+          statusEl.innerHTML = `<span style="color: var(--danger);">Błąd wysyłania: ${e.message}. Pobierz wyniki ręcznie.</span>`;
+        }
+      }
+
+      // Download functions removed from participant view.
+      // Results are submitted automatically via webhook.
+
+      // ═══════════════════════════════════════════════════════════════
+      // STARTUP: check URL params for direct participant mode
+      // ═══════════════════════════════════════════════════════════════
+
+      async function init() {
+        // Check if config.json exists (for GitHub Pages deployment)
+        const params = new URLSearchParams(window.location.search);
+
+        if (params.has('participant')) {
+          // Direct link for participants: load config and go to welcome screen
+          try {
+            const configUrl = params.get('config') || 'config.json';
+            const resp = await fetch(configUrl);
+            if (resp.ok) {
+              config = await resp.json();
+              state.isAdmin = false;
+              showScreen('welcome');
+              document.getElementById('test-title').textContent = config.title;
+              return;
+            }
+          } catch (e) {
+            console.warn('Could not load config.json:', e);
+          }
+        }
+
+        // Admin mode
+        // Admin mode
+        renderScenarioEditor();
+      }
+
+      init();
+    </script>
 
 </body>
 
