@@ -70,8 +70,8 @@
       ]
     },
     {
-      "name": "Fortepian — Room (długi pogłos)",
-      "description": "Porównaj i oceń jakość pogłosu typu Room na ścieżce fortepianu.",
+      "name": "Fortepian — Hall (długi pogłos)",
+      "description": "Porównaj i oceń jakość pogłosu typu Hall na ścieżce fortepianu.",
       "reference": "samples/fortepian_ref_5s_mix.wav",
       "dry": "samples/fortepian_dry.wav",
       "samples": [
@@ -103,8 +103,8 @@
       ]
     },
     {
-      "name": "Miks — Room (długi pogłos)",
-      "description": "Porównaj i oceń jakość pogłosu typu Room na ścieżce miksu całego utworu.",
+      "name": "Miks — Hall (długi pogłos)",
+      "description": "Porównaj i oceń jakość pogłosu typu Hall na ścieżce miksu całego utworu.",
       "reference": "samples/miks_ref_5s_mix.wav",
       "dry": "samples/miks_dry.wav",
       "samples": [
