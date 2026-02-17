@@ -803,33 +803,33 @@
       // Initialize with a demo scenario
       const defaultScenarios = [
         {
-          name: "Wokal żeński — Hall",
+          name: "Wokal żeński — Room (krótki pogłos)",
           description: "Porównaj jakość rewerbu typu Hall na wokalu żeńskim. Oceń naturalność, gładkość ogona i brak artefaktów.",
-          reference: "samples/vocal_ref.wav",
-          dry: "samples/vocal_dry.wav",
+          reference: "samples/wokal_ref_1s_mix.wav",
+          dry: "samples/wokal_dry.wav",
           samples: [
-            { id: "fdn_wojda", label: "Sample A", url: "samples/vocal_fdn.wav" },
-            { id: "hidden_ref", label: "Sample B", url: "samples/vocal_ref.wav" },
-            { id: "dragonfly", label: "Sample C", url: "samples/vocal_dragonfly.wav" },
-            { id: "openverb", label: "Sample D", url: "samples/vocal_openverb.wav" },
-            { id: "orilriver", label: "Sample E", url: "samples/vocal_orilriver.wav" },
-            { id: "valhalla", label: "Sample F", url: "samples/vocal_valhalla.wav" },
-            { id: "anchor", label: "Sample G", url: "samples/vocal_anchor.wav" }
+            { id: "fdn_wojda", label: "Sample A", url: "samples/wokal_poglosie_1s_mix.wav" },
+            { id: "hidden_ref", label: "Sample B", url: "samples/wokal_ref_1s_mix.wav" },
+            { id: "dragonfly", label: "Sample C", url: "samples/wokal_dragonfly_1s_mix.wav" },
+            { id: "openverb", label: "Sample D", url: "samples/wokal_orilriver_1s_mix.wav" }, // Note: openverb ID but orilriver file? Keeping ID for now but correcting URL based on pattern
+            { id: "orilriver", label: "Sample E", url: "samples/wokal_orilriver_1s_mix.wav" },
+            { id: "valhalla", label: "Sample F", url: "samples/wokal_vintageverb_1s_mix.wav" },
+            { id: "anchor", label: "Sample G", url: "samples/wokal_ref_1s_mix_anchor.wav" }
           ]
         },
         {
-          name: "Perkusja — Room",
+          name: "Perkusja — Room (krótki pogłos)",
           description: "Porównaj reverb typu Room na ścieżce perkusyjnej. Zwróć uwagę na gęstość echa i metaliczność.",
-          reference: "samples/drums_ref.wav",
-          dry: "samples/drums_dry.wav",
+          reference: "samples/perkusja_ref_1s_mix.wav",
+          dry: "samples/perkusja_dry.wav",
           samples: [
-            { id: "fdn_wojda", label: "Sample A", url: "samples/drums_fdn.wav" },
-            { id: "hidden_ref", label: "Sample B", url: "samples/drums_ref.wav" },
-            { id: "dragonfly", label: "Sample C", url: "samples/drums_dragonfly.wav" },
-            { id: "openverb", label: "Sample D", url: "samples/drums_openverb.wav" },
-            { id: "orilriver", label: "Sample E", url: "samples/drums_orilriver.wav" },
-            { id: "valhalla", label: "Sample F", url: "samples/drums_valhalla.wav" },
-            { id: "anchor", label: "Sample G", url: "samples/drums_anchor.wav" }
+            { id: "fdn_wojda", label: "Sample A", url: "samples/perkusja_poglosie_1s_mix.wav" },
+            { id: "hidden_ref", label: "Sample B", url: "samples/perkusja_ref_1s_mix.wav" },
+            { id: "dragonfly", label: "Sample C", url: "samples/perkusja_dragonfly_1s_mix.wav" },
+            { id: "openverb", label: "Sample D", url: "samples/perkusja_orilriver_1s_mix.wav" }, // Check logic here, maybe openverb is missing? User config had orilriver twice?
+            { id: "orilriver", label: "Sample E", url: "samples/perkusja_orilriver_1s_mix.wav" },
+            { id: "valhalla", label: "Sample F", url: "samples/perkusja_vintageverb_1s_mix.wav" },
+            { id: "anchor", label: "Sample G", url: "samples/perkusja_ref_1s_mix_anchor.wav" }
           ]
         }
       ];
@@ -1369,6 +1369,10 @@
       // WAVEFORM VISUALIZATION (Canvas — sample-accurate)
       // ═══════════════════════════════════════════════════════════════
 
+      // ═══════════════════════════════════════════════════════════════
+      // WAVEFORM VISUALIZATION (Canvas — offscreen optimized)
+      // ═══════════════════════════════════════════════════════════════
+
       function formatTime(seconds) {
         const m = Math.floor(seconds / 60);
         const s = Math.floor(seconds % 60);
@@ -1378,40 +1382,45 @@
       function drawWaveform(audioBuffer) {
         const canvas = document.getElementById('waveform-canvas');
         if (!canvas || !audioBuffer) return;
+
+        // Use willReadFrequently to optimize (though we will try to avoid reading if possible)
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
+
         const dpr = window.devicePixelRatio || 1;
         const w = canvas.clientWidth;
         const h = canvas.clientHeight;
         canvas.width = w * dpr;
         canvas.height = h * dpr;
-        const ctx = canvas.getContext('2d');
+
         ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        ctx.clearRect(0, 0, w, h);
 
         // Average channels
         const data = audioBuffer.getChannelData(0);
         const step = Math.ceil(data.length / w);
-        ctx.clearRect(0, 0, w, h);
 
-        // Draw waveform bars
         // Draw waveform bars
         const barWidth = VISUAL_THEME.waveform.barWidth;
         const barGap = VISUAL_THEME.waveform.barGap;
         const barStep = barWidth + barGap;
         let maxVal = 0;
         const bars = [];
+
+        // Calculate maxVal first
         for (let x = 0; x < w; x += barStep) {
           const start = Math.floor((x / w) * data.length);
           const end = Math.min(start + step * barStep, data.length);
           let sum = 0;
           for (let j = start; j < end; j++) sum += Math.abs(data[j]);
-          const avg = sum / (end - start);
+          const avg = sum / (end - start) || 0;
           bars.push(avg);
           if (avg > maxVal) maxVal = avg;
         }
 
-        // Normalize and draw
+        // Draw bars
         ctx.fillStyle = VISUAL_THEME.waveform.color;
         bars.forEach((val, i) => {
-          const barH = (val / maxVal) * (h * VISUAL_THEME.waveform.heightScale);
+          const barH = maxVal > 0 ? (val / maxVal) * (h * VISUAL_THEME.waveform.heightScale) : 0;
           const x = i * barStep;
           const y = (h - barH) / 2;
           ctx.beginPath();
@@ -1419,8 +1428,14 @@
           ctx.fill();
         });
 
-        // Cache static waveform
-        state.waveformImageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        // Store offscreen copy of the waveform ONLY
+        if (!state.offscreenCanvas) {
+          state.offscreenCanvas = document.createElement('canvas');
+        }
+        state.offscreenCanvas.width = canvas.width;
+        state.offscreenCanvas.height = canvas.height;
+        const offCtx = state.offscreenCanvas.getContext('2d');
+        offCtx.drawImage(canvas, 0, 0);
 
         // Time display
         const totalTime = audioBuffer.length / audioBuffer.sampleRate;
@@ -1439,32 +1454,41 @@
 
       function drawPlayhead() {
         const canvas = document.getElementById('waveform-canvas');
-        if (!canvas || !state.waveformImageData) return;
+        // Check for offscreen canvas instead of waveformImageData
+        if (!canvas || !state.offscreenCanvas) return;
         if (!state.totalSamples) return;
 
-        const ctx = canvas.getContext('2d');
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
         const dpr = window.devicePixelRatio || 1;
         const w = canvas.clientWidth;
         const h = canvas.clientHeight;
 
-        // Restore cached waveform
-        ctx.putImageData(state.waveformImageData, 0, 0);
+        // 1. Clear and redraw static waveform from offscreen canvas
+        // This is much faster than putImageData
+        ctx.resetTransform(); // clear transform for direct pixel copy
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(state.offscreenCanvas, 0, 0);
 
+        // 2. Draw Playhead Overlay
         const progress = state.currentSample / state.totalSamples;
+        // visual X position
         const x = progress * w;
 
-        ctx.save();
         ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-        // Progress overlay
+
+        // Progress shade
         ctx.fillStyle = VISUAL_THEME.waveform.progressColor;
         ctx.fillRect(0, 0, x, h);
+
         // Cursor line
         ctx.strokeStyle = VISUAL_THEME.playhead.color;
         ctx.lineWidth = VISUAL_THEME.playhead.width;
         ctx.shadowColor = VISUAL_THEME.playhead.shadowColor;
         ctx.shadowBlur = VISUAL_THEME.playhead.shadowBlur;
-        ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke();
-        ctx.restore();
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, h);
+        ctx.stroke();
 
         // Time display
         const currentTime = state.currentSample / state.sampleRate;

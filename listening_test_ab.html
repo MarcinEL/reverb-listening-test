@@ -811,43 +811,43 @@
             {
                 name: "Wokal — FDN vs Valhalla",
                 description: "Wokal żeński z reverbem typu Hall",
-                sample_a: { id: "fdn_wojda", url: "samples/vocal_fdn.wav" },
-                sample_b: { id: "valhalla", url: "samples/vocal_valhalla.wav" },
-                dry: "samples/vocal_dry.wav"
+                sample_a: { id: "fdn_wojda", url: "samples/wokal_poglosie_1s_mix.wav" },
+                sample_b: { id: "valhalla", url: "samples/wokal_vintageverb_1s_mix.wav" },
+                dry: "samples/wokal_dry.wav"
             },
             {
                 name: "Wokal — FDN vs DragonFly",
                 description: "Wokal żeński z reverbem typu Hall",
-                sample_a: { id: "fdn_wojda", url: "samples/vocal_fdn.wav" },
-                sample_b: { id: "dragonfly", url: "samples/vocal_dragonfly.wav" },
-                dry: "samples/vocal_dry.wav"
+                sample_a: { id: "fdn_wojda", url: "samples/wokal_poglosie_1s_mix.wav" },
+                sample_b: { id: "dragonfly", url: "samples/wokal_dragonfly_1s_mix.wav" },
+                dry: "samples/wokal_dry.wav"
             },
             {
                 name: "Wokal — FDN vs Orilriver",
                 description: "Wokal żeński z reverbem typu Hall",
-                sample_a: { id: "fdn_wojda", url: "samples/vocal_fdn.wav" },
-                sample_b: { id: "orilriver", url: "samples/vocal_orilriver.wav" },
-                dry: "samples/vocal_dry.wav"
+                sample_a: { id: "fdn_wojda", url: "samples/wokal_poglosie_1s_mix.wav" },
+                sample_b: { id: "orilriver", url: "samples/wokal_orilriver_1s_mix.wav" },
+                dry: "samples/wokal_dry.wav"
             },
             {
                 name: "Perkusja — FDN vs Valhalla",
                 description: "Perkusja z reverbem typu Room",
-                sample_a: { id: "fdn_wojda", url: "samples/drums_fdn.wav" },
-                sample_b: { id: "valhalla", url: "samples/drums_valhalla.wav" },
-                dry: "samples/drums_dry.wav"
+                sample_a: { id: "fdn_wojda", url: "samples/perkusja_poglosie_1s_mix.wav" },
+                sample_b: { id: "valhalla", url: "samples/perkusja_vintageverb_1s_mix.wav" },
+                dry: "samples/perkusja_dry.wav"
             },
             {
                 name: "Perkusja — FDN vs DragonFly",
                 description: "Perkusja z reverbem typu Room",
-                sample_a: { id: "fdn_wojda", url: "samples/drums_fdn.wav" },
-                sample_b: { id: "dragonfly", url: "samples/drums_dragonfly.wav" },
-                dry: "samples/drums_dry.wav"
+                sample_a: { id: "fdn_wojda", url: "samples/perkusja_poglosie_1s_mix.wav" },
+                sample_b: { id: "dragonfly", url: "samples/perkusja_dragonfly_1s_mix.wav" },
+                dry: "samples/perkusja_dry.wav"
             },
             {
                 name: "Perkusja — FDN vs Orilriver",
                 description: "Perkusja z reverbem typu Room",
-                sample_a: { id: "fdn_wojda", url: "samples/drums_fdn.wav" },
-                sample_b: { id: "orilriver", url: "samples/drums_orilriver.wav" },
+                sample_a: { id: "fdn_wojda", url: "samples/perkusja_poglosie_1s_mix.wav" },
+                sample_b: { id: "orilriver", url: "samples/perkusja_orilriver_1s_mix.wav" },
                 dry: "samples/drums_dry.wav"
             }
         ];
@@ -1483,17 +1483,21 @@
         function drawWaveform(audioBuffer) {
             const canvas = document.getElementById('waveform-canvas');
             if (!canvas || !audioBuffer) return;
+
+            // Optimize context
+            const ctx = canvas.getContext('2d', { willReadFrequently: true });
+
             const dpr = window.devicePixelRatio || 1;
             const w = canvas.clientWidth;
             const h = canvas.clientHeight;
             canvas.width = w * dpr;
             canvas.height = h * dpr;
-            const ctx = canvas.getContext('2d');
+
             ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+            ctx.clearRect(0, 0, w, h);
 
             const data = audioBuffer.getChannelData(0);
             const step = Math.ceil(data.length / w);
-            ctx.clearRect(0, 0, w, h);
 
             // Draw waveform bars
             const barWidth = VISUAL_THEME.waveform.barWidth;
@@ -1501,20 +1505,22 @@
             const barStep = barWidth + barGap;
             let maxVal = 0;
             const bars = [];
+
+            // Calculate maxVal
             for (let x = 0; x < w; x += barStep) {
                 const start = Math.floor((x / w) * data.length);
                 const end = Math.min(start + step * barStep, data.length);
                 let sum = 0;
                 for (let j = start; j < end; j++) sum += Math.abs(data[j]);
-                const avg = sum / (end - start);
+                const avg = sum / (end - start) || 0;
                 bars.push(avg);
                 if (avg > maxVal) maxVal = avg;
             }
 
-            // Normalize and draw
+            // Draw
             ctx.fillStyle = VISUAL_THEME.waveform.color;
             bars.forEach((val, i) => {
-                const barH = (val / maxVal) * (h * VISUAL_THEME.waveform.heightScale);
+                const barH = maxVal > 0 ? (val / maxVal) * (h * VISUAL_THEME.waveform.heightScale) : 0;
                 const x = i * barStep;
                 const y = (h - barH) / 2;
                 ctx.beginPath();
@@ -1522,12 +1528,21 @@
                 ctx.fill();
             });
 
-            state.waveformImageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            // Store offscreen copy
+            if (!state.offscreenCanvas) {
+                state.offscreenCanvas = document.createElement('canvas');
+            }
+            state.offscreenCanvas.width = canvas.width;
+            state.offscreenCanvas.height = canvas.height;
+            const offCtx = state.offscreenCanvas.getContext('2d');
+            offCtx.drawImage(canvas, 0, 0);
 
+            // Time display
             const totalTime = audioBuffer.length / audioBuffer.sampleRate;
             const totalEl = document.getElementById('waveform-time-total');
             if (totalEl) totalEl.textContent = formatTime(totalTime);
 
+            // Click to seek
             canvas.onclick = function (e) {
                 const rect = canvas.getBoundingClientRect();
                 const x = e.clientX - rect.left;
@@ -1539,30 +1554,39 @@
 
         function drawPlayhead() {
             const canvas = document.getElementById('waveform-canvas');
-            if (!canvas || !state.waveformImageData) return;
+            if (!canvas || !state.offscreenCanvas) return;
             if (!state.totalSamples) return;
 
-            const ctx = canvas.getContext('2d');
+            const ctx = canvas.getContext('2d', { willReadFrequently: true });
             const dpr = window.devicePixelRatio || 1;
             const w = canvas.clientWidth;
             const h = canvas.clientHeight;
 
-            ctx.putImageData(state.waveformImageData, 0, 0);
+            // Restore from offscreen (fast)
+            ctx.resetTransform();
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(state.offscreenCanvas, 0, 0);
 
             const progress = state.currentSample / state.totalSamples;
             const x = progress * w;
 
-            ctx.save();
             ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+            // Progress overlay
             ctx.fillStyle = VISUAL_THEME.waveform.progressColor;
             ctx.fillRect(0, 0, x, h);
+
+            // Cursor line
             ctx.strokeStyle = VISUAL_THEME.playhead.color;
             ctx.lineWidth = VISUAL_THEME.playhead.width;
             ctx.shadowColor = VISUAL_THEME.playhead.shadowColor;
             ctx.shadowBlur = VISUAL_THEME.playhead.shadowBlur;
-            ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke();
-            ctx.restore();
+            ctx.beginPath();
+            ctx.moveTo(x, 0);
+            ctx.lineTo(x, h);
+            ctx.stroke();
 
+            // Time display
             const currentTime = state.currentSample / state.sampleRate;
             const timeEl = document.getElementById('waveform-time-current');
             if (timeEl) timeEl.textContent = formatTime(currentTime);
