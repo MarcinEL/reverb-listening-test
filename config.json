@@ -32,12 +32,12 @@
         {
           "id": "valhalla",
           "label": "Sample F",
-          "url": "samples/wokal_ref_1s_mix_anchor.wav"
+          "url": "samples/wokal_vintageverb_1s_mix.wav"
         },
         {
           "id": "anchor",
           "label": "Sample G",
-          "url": "samples/vocal_anchor.wav"
+          "url": "samples/wokal_ref_1s_mix_anchor.wav"
         }
       ]
     },
@@ -70,12 +70,12 @@
         {
           "id": "valhalla",
           "label": "Sample F",
-          "url": "samples/perkusja_ref_1s_mix_anchor.wav"
+          "url": "samples/perkusja_vintageverb_1s_mix.wav"
         },
         {
           "id": "anchor",
           "label": "Sample G",
-          "url": "samples/perkusja_anchor.wav"
+          "url": "samples/perkusja_ref_1s_mix_anchor.wav"
         }
       ]
     }
