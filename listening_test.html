@@ -5,6 +5,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Test Słuchowy Reverbu — MUSHRA</title>
+  <script src="https://unpkg.com/wavesurfer.js@7"></script>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700&family=JetBrains+Mono:wght@400;500&display=swap');
 
@@ -419,22 +420,7 @@
       border-radius: 8px;
       margin-bottom: 1rem;
       overflow: hidden;
-      cursor: pointer;
-    }
-
-    .waveform-canvas {
-      display: block;
-      width: 100%;
-      height: 70px;
-    }
-
-    .waveform-time {
-      display: flex;
-      justify-content: space-between;
-      font-size: 0.7rem;
-      color: var(--text-dim);
-      font-family: 'JetBrains Mono', monospace;
-      padding: 0.2rem 0.5rem 0.3rem;
+      padding: 0.3rem 0;
     }
 
     /* Looping indicator */
@@ -652,12 +638,8 @@
         </div>
 
         <!-- Waveform visualization -->
-        <div class="waveform-container" id="waveform-container" style="display: none;" onclick="waveformSeek(event)">
-          <canvas id="waveform-canvas" class="waveform-canvas"></canvas>
-          <div class="waveform-time">
-            <span id="waveform-time-current">0:00</span>
-            <span id="waveform-time-end">0:00</span>
-          </div>
+        <div class="waveform-container" id="waveform-container" style="display: none;">
+          <div id="waveform"></div>
         </div>
 
         <!-- Sample players with sliders -->
@@ -727,8 +709,7 @@
       playingId: null,
       isAdmin: true,
       volume: 0.8,
-      waveformCache: {},    // { url: AudioBuffer }
-      animFrame: null,
+      wavesurfer: null,     // WaveSurfer instance
     };
 
     // ═══════════════════════════════════════════════════════════════
@@ -1038,7 +1019,7 @@
     }
 
     function cleanupAudioPool() {
-      cancelAnimationFrame(state.animFrame);
+      if (state.wavesurfer) { state.wavesurfer.destroy(); state.wavesurfer = null; }
       Object.values(state.audioPool).forEach(entry => {
         entry.audio.pause();
         entry.audio.src = '';
@@ -1049,10 +1030,7 @@
       state.activeKey = null;
       state.isPlaying = false;
       state.playingId = null;
-      waveformImageData = null;
 
-      const canvas = document.getElementById('waveform-canvas');
-      if (canvas) { const ctx = canvas.getContext('2d'); ctx.clearRect(0, 0, canvas.width, canvas.height); }
       const container = document.getElementById('waveform-container');
       if (container) container.style.display = 'none';
 
@@ -1083,7 +1061,6 @@
     }
 
     function stopAudio() {
-      cancelAnimationFrame(state.animFrame);
       if (state.isPlaying && state.audioCtx && state.activeKey) {
         const entry = state.audioPool[state.activeKey];
         if (entry) {
@@ -1166,11 +1143,10 @@
       if (rowId) { const row = document.getElementById(rowId); if (row) row.classList.add('playing'); }
       document.getElementById('loop-info').style.display = 'flex';
 
-      // Waveform
+      // Waveform — show container and create/update WaveSurfer
       const container = document.getElementById('waveform-container');
       if (container) container.style.display = 'block';
-      loadAndDrawWaveform(entry.url);
-      startPlayheadAnimation();
+      initWaveSurfer(entry);
     }
 
     function playRef() {
@@ -1182,144 +1158,36 @@
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // WAVEFORM VISUALIZATION
+    // WAVEFORM VISUALIZATION (WaveSurfer.js)
     // ═══════════════════════════════════════════════════════════════
 
-    function loadAndDrawWaveform(url) {
-      if (state.waveformCache[url]) { drawWaveformBuffer(state.waveformCache[url]); return; }
-      fetch(url)
-        .then(r => r.arrayBuffer())
-        .then(buf => state.audioCtx.decodeAudioData(buf))
-        .then(audioBuffer => {
-          state.waveformCache[url] = audioBuffer;
-          const active = state.audioPool[state.activeKey];
-          if (active && active.url === url) drawWaveformBuffer(audioBuffer);
-        })
-        .catch(e => console.warn('Waveform decode failed:', e));
-    }
+    function initWaveSurfer(entry) {
+      // Destroy previous instance
+      if (state.wavesurfer) { state.wavesurfer.destroy(); state.wavesurfer = null; }
 
-    function drawWaveformBuffer(audioBuffer) {
-      const canvas = document.getElementById('waveform-canvas');
-      if (!canvas) return;
-      const ctx = canvas.getContext('2d');
-      const dpr = window.devicePixelRatio || 1;
-      canvas.width = canvas.clientWidth * dpr;
-      canvas.height = canvas.clientHeight * dpr;
-      ctx.scale(dpr, dpr);
-      const w = canvas.clientWidth, h = canvas.clientHeight;
-      const data = audioBuffer.getChannelData(0);
-      const step = Math.ceil(data.length / w);
-      const mid = h / 2;
-
-      ctx.clearRect(0, 0, w, h);
-
-      // Center line
-      ctx.strokeStyle = '#2a355060';
-      ctx.lineWidth = 1;
-      ctx.beginPath(); ctx.moveTo(0, mid); ctx.lineTo(w, mid); ctx.stroke();
-
-      // Waveform
-      ctx.fillStyle = '#3b82f650';
-      for (let i = 0; i < w; i++) {
-        const start = i * step;
-        let min = 1, max = -1;
-        for (let j = 0; j < step && (start + j) < data.length; j++) {
-          const v = data[start + j];
-          if (v < min) min = v;
-          if (v > max) max = v;
-        }
-        const y1 = mid + min * mid * 0.85;
-        const y2 = mid + max * mid * 0.85;
-        ctx.fillRect(i, y1, 1, Math.max(1, y2 - y1));
-      }
-
-      waveformImageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-      const timeEl = document.getElementById('waveform-time-end');
-      if (timeEl) timeEl.textContent = formatTime(audioBuffer.duration);
-    }
-
-    // Interpolation state for smooth playhead
-    let _lastAudioTime = 0;
-    let _lastPerfTime = 0;
-
-    function startPlayheadAnimation() {
-      cancelAnimationFrame(state.animFrame);
-      // Reset interpolation on start/switch
-      const active = state.audioPool[state.activeKey];
-      if (active) {
-        _lastAudioTime = active.audio.currentTime;
-        _lastPerfTime = performance.now();
-      }
-      function animate() {
-        if (!state.isPlaying) return;
-        drawPlayhead();
-        state.animFrame = requestAnimationFrame(animate);
-      }
-      state.animFrame = requestAnimationFrame(animate);
-    }
-
-    function drawPlayhead() {
-      const canvas = document.getElementById('waveform-canvas');
-      if (!canvas || !waveformImageData) return;
-      const active = state.audioPool[state.activeKey];
-      if (!active || !active.audio.duration) return;
-
-      const ctx = canvas.getContext('2d');
-      const dpr = window.devicePixelRatio || 1;
-      const w = canvas.clientWidth, h = canvas.clientHeight;
-
-      ctx.putImageData(waveformImageData, 0, 0);
-
-      // Interpolate for smooth motion between audio.currentTime updates
-      const rawTime = active.audio.currentTime;
-      const now = performance.now();
-      if (Math.abs(rawTime - _lastAudioTime) > 0.001) {
-        // audio.currentTime updated — resync
-        _lastAudioTime = rawTime;
-        _lastPerfTime = now;
-      }
-      const elapsed = (now - _lastPerfTime) / 1000;
-      let smoothTime = _lastAudioTime + elapsed;
-      // Handle loop wrap
-      if (smoothTime > active.audio.duration) smoothTime = smoothTime % active.audio.duration;
-
-      const progress = smoothTime / active.audio.duration;
-      const x = progress * w;
-
-      ctx.save();
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      // Played portion
-      ctx.fillStyle = '#3b82f618';
-      ctx.fillRect(0, 0, x, h);
-      // Playhead
-      ctx.strokeStyle = '#f59e0b';
-      ctx.lineWidth = 2;
-      ctx.shadowColor = '#f59e0b';
-      ctx.shadowBlur = 6;
-      ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke();
-      ctx.restore();
-
-      const timeEl = document.getElementById('waveform-time-current');
-      if (timeEl) timeEl.textContent = formatTime(smoothTime);
-    }
-
-    function waveformSeek(event) {
-      if (!state.isPlaying) return;
-      const canvas = document.getElementById('waveform-canvas');
-      if (!canvas) return;
-      const rect = canvas.getBoundingClientRect();
-      const x = event.clientX - rect.left;
-      const progress = Math.max(0, Math.min(1, x / rect.width));
-      Object.values(state.audioPool).forEach(entry => {
-        if (entry.audio.duration) entry.audio.currentTime = progress * entry.audio.duration;
+      state.wavesurfer = WaveSurfer.create({
+        container: '#waveform',
+        media: entry.audio,
+        height: 64,
+        waveColor: '#3b82f650',
+        progressColor: '#3b82f6',
+        cursorColor: '#f59e0b',
+        cursorWidth: 2,
+        barWidth: 2,
+        barGap: 1,
+        barRadius: 2,
+        normalize: true,
+        interact: true,
       });
-    }
 
-    function formatTime(s) {
-      if (!s || !isFinite(s)) return '0:00';
-      const m = Math.floor(s / 60);
-      const sec = Math.floor(s % 60);
-      return `${m}:${String(sec).padStart(2, '0')}`;
+      // On seek via wavesurfer click, sync all pool elements
+      state.wavesurfer.on('seeking', (time) => {
+        Object.entries(state.audioPool).forEach(([k, e]) => {
+          if (e.audio !== entry.audio && e.audio.duration) {
+            e.audio.currentTime = time;
+          }
+        });
+      });
     }
 
     // ═══════════════════════════════════════════════════════════════
