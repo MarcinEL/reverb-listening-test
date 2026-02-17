@@ -1102,7 +1102,7 @@
 
     function initScriptProcessor() {
       if (state.scriptNode) return; // already initialized
-      const bufferSize = 4096;
+      const bufferSize = 8192;
       // Determine channel count from first available buffer
       const firstBuf = Object.values(state.audioPool)[0]?.buffer;
       const channels = firstBuf ? Math.min(firstBuf.numberOfChannels, 2) : 2;
