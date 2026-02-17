@@ -776,28 +776,24 @@
         participant: {},
         audioCtx: null,
         gainNode: null,       // master volume gain
-        audioPool: {},        // { key: { buffer, url } }  — AudioBuffer objects
-        activeKey: null,      // key of currently audible sample
+        workletNode: null,    // AudioWorkletNode
+        audioPool: {},        // { key: { buffer, url } }  — AudioBuffer objects (for waveform)
+        activeKey: null,      // key of currently audible sample (UI tracking)
         isPlaying: false,
         playingId: null,
         isAdmin: true,
         volume: 0.8,
-        // AudioBuffer engine state
-        scriptNode: null,
-        dummySource: null,
         currentSample: 0,     // current playback position in samples
         totalSamples: 0,      // total length in samples
         sampleRate: 48000,
-        fadingState: 0,       // 0=none, 1=fade-out, 2=fade-in
-        fadingPosition: 0,
-        fadingMaxSamples: 240, // ~5ms at 48kHz
-        fadingInKey: null,     // key of buffer fading in
         animFrame: null,
         waveformImageData: null,
         // Playhead interpolation state
         lastCallbackTime: 0,
         lastCallbackSample: 0,
       };
+
+      let workletReady = null; // Promise — resolved when AudioWorklet is initialized
 
       // ═══════════════════════════════════════════════════════════════
       // ADMIN: SCENARIO EDITOR
@@ -1097,8 +1093,8 @@
       }
 
       // ═══════════════════════════════════════════════════════════════
-      // AUDIO ENGINE — AudioBuffer + ScriptProcessorNode
-      // (sample-accurate position tracking, no <audio> elements)
+      // AUDIO ENGINE — AudioWorkletNode
+      // (dedicated audio thread, 128-sample blocks ≈ 2.7ms latency)
       // ═══════════════════════════════════════════════════════════════
 
       function ensureAudioCtx() {
@@ -1107,8 +1103,41 @@
           state.gainNode = state.audioCtx.createGain();
           state.gainNode.gain.value = state.volume;
           state.gainNode.connect(state.audioCtx.destination);
+          // Start worklet initialization (async, tracked by promise)
+          workletReady = initAudioWorklet();
         }
         if (state.audioCtx.state === 'suspended') state.audioCtx.resume();
+      }
+
+      async function initAudioWorklet() {
+        await state.audioCtx.audioWorklet.addModule('audio-processor.js');
+        state.workletNode = new AudioWorkletNode(state.audioCtx, 'playback-processor', {
+          outputChannelCount: [2],
+          numberOfOutputs: 1,
+        });
+        state.workletNode.connect(state.gainNode);
+
+        // Receive position updates from the audio thread
+        state.workletNode.port.onmessage = (e) => {
+          if (e.data.type === 'position') {
+            state.currentSample = e.data.position;
+            state.lastCallbackTime = state.audioCtx.currentTime;
+            state.lastCallbackSample = e.data.position;
+          }
+        };
+      }
+
+      function sendBufferToWorklet(key, audioBuffer) {
+        if (!state.workletNode) return;
+        const channels = [];
+        for (let ch = 0; ch < Math.min(audioBuffer.numberOfChannels, 2); ch++) {
+          channels.push(new Float32Array(audioBuffer.getChannelData(ch)));
+        }
+        // Transfer copies to worklet (zero-copy move, main thread keeps originals)
+        state.workletNode.port.postMessage(
+          { type: 'load', key: key, data: channels },
+          channels.map(c => c.buffer)
+        );
       }
 
       function setVolume(val) {
@@ -1119,106 +1148,10 @@
         }
       }
 
-      function initScriptProcessor() {
-        if (state.scriptNode) return; // already initialized
-        const bufferSize = 1024; // ~21ms at 48kHz — responsive switching & smooth playhead
-        // Determine channel count from first available buffer
-        const firstBuf = Object.values(state.audioPool)[0]?.buffer;
-        const channels = firstBuf ? Math.min(firstBuf.numberOfChannels, 2) : 2;
-
-        state.dummySource = state.audioCtx.createBufferSource();
-        state.dummySource.loop = true;
-        state.dummySource.buffer = state.audioCtx.createBuffer(1, bufferSize, state.audioCtx.sampleRate);
-
-        state.scriptNode = state.audioCtx.createScriptProcessor(bufferSize, 1, channels);
-        state.scriptNode.onaudioprocess = processAudio;
-
-        state.dummySource.connect(state.scriptNode);
-        state.scriptNode.connect(state.gainNode);
-        state.dummySource.start();
-      }
-
-      function processAudio(e) {
-        const out = e.outputBuffer;
-        const numChannels = out.numberOfChannels;
-
-        // Not playing or no active buffer → silence
-        if (!state.isPlaying || !state.activeKey || !state.audioPool[state.activeKey]) {
-          for (let ch = 0; ch < numChannels; ch++) {
-            const od = out.getChannelData(ch);
-            for (let i = 0; i < out.length; i++) od[i] = 0;
-          }
-          return;
-        }
-
-        const activeBuffer = state.audioPool[state.activeKey].buffer;
-        const totalSamples = activeBuffer.length;
-
-        for (let ch = 0; ch < numChannels; ch++) {
-          const od = out.getChannelData(ch);
-          const srcCh = ch < activeBuffer.numberOfChannels ? ch : 0;
-          const inputData = activeBuffer.getChannelData(srcCh);
-          let pos = state.currentSample;
-
-          for (let i = 0; i < out.length; i++) {
-            // Crossfade handling
-            if (state.fadingState === 1) { // fade out
-              const ramp = 0.5 * (1 + Math.cos(Math.PI * state.fadingPosition / (state.fadingMaxSamples - 1)));
-              od[i] = inputData[pos] * ramp;
-              if (ch === 0) state.fadingPosition++;
-              if (state.fadingPosition >= state.fadingMaxSamples && ch === numChannels - 1) {
-                if (state.fadingInKey) {
-                  state.activeKey = state.fadingInKey;
-                  state.fadingInKey = null;
-                  state.fadingState = 2;
-                  state.fadingPosition = 0;
-                } else {
-                  state.isPlaying = false;
-                  state.fadingState = 0;
-                  state.fadingPosition = 0;
-                  for (let j = i + 1; j < out.length; j++) od[j] = 0;
-                  break;
-                }
-              }
-            } else if (state.fadingState === 2) { // fade in
-              const newBuf = state.audioPool[state.activeKey].buffer;
-              const newData = newBuf.getChannelData(ch < newBuf.numberOfChannels ? ch : 0);
-              const ramp = 0.5 * (1 - Math.cos(Math.PI * state.fadingPosition / (state.fadingMaxSamples - 1)));
-              od[i] = newData[pos] * ramp;
-              if (ch === 0) state.fadingPosition++;
-              if (state.fadingPosition >= state.fadingMaxSamples && ch === numChannels - 1) {
-                state.fadingState = 0;
-                state.fadingPosition = 0;
-              }
-            } else {
-              od[i] = inputData[pos];
-            }
-
-            if (ch === 0) pos++;
-            // Loop
-            if (pos >= totalSamples) pos = 0;
-          }
-
-          if (ch === numChannels - 1) {
-            state.currentSample = pos;
-          }
-        }
-
-        // Track timing for smooth playhead interpolation
-        state.lastCallbackTime = state.audioCtx.currentTime;
-        state.lastCallbackSample = state.currentSample;
-      }
-
       function cleanupAudioPool() {
-        // Stop script processor
-        if (state.scriptNode) {
-          state.scriptNode.onaudioprocess = null;
-          try { state.scriptNode.disconnect(); } catch (e) { }
-          state.scriptNode = null;
-        }
-        if (state.dummySource) {
-          try { state.dummySource.disconnect(); } catch (e) { }
-          state.dummySource = null;
+        // Tell worklet to clear its buffers
+        if (state.workletNode) {
+          state.workletNode.port.postMessage({ type: 'cleanup' });
         }
         cancelAnimationFrame(state.animFrame);
         state.audioPool = {};
@@ -1249,7 +1182,6 @@
           entries.push({ key: 'dry', url: scenario.dry });
         }
 
-        // Show loading state
         let loaded = 0;
         const total = entries.length;
 
@@ -1277,23 +1209,28 @@
         });
       }
 
-      function onAllBuffersLoaded() {
+      async function onAllBuffersLoaded() {
         // Set total samples from reference (or first available)
         const refBuf = state.audioPool['ref']?.buffer || Object.values(state.audioPool)[0]?.buffer;
         if (refBuf) {
           state.totalSamples = refBuf.length;
           state.sampleRate = refBuf.sampleRate;
-          state.fadingMaxSamples = Math.floor(state.sampleRate * 0.005); // 5ms crossfade
         }
-        // Initialize the ScriptProcessorNode
-        initScriptProcessor();
+
+        // Wait for worklet to be ready, then send buffers
+        await workletReady;
+
+        const fadeLength = Math.floor(state.sampleRate * 0.005); // 5ms crossfade
+        state.workletNode.port.postMessage({ type: 'setFadeLength', samples: fadeLength });
+
+        for (const [key, entry] of Object.entries(state.audioPool)) {
+          sendBufferToWorklet(key, entry.buffer);
+        }
       }
 
       function stopAudio() {
-        if (state.isPlaying) {
-          state.fadingInKey = null;
-          state.fadingState = 1;
-          state.fadingPosition = 0;
+        if (state.workletNode) {
+          state.workletNode.port.postMessage({ type: 'stop' });
         }
         cancelAnimationFrame(state.animFrame);
         state.activeKey = null;
@@ -1308,12 +1245,13 @@
       function switchToSample(key, elementId, rowId) {
         ensureAudioCtx();
         const entry = state.audioPool[key];
-        if (!entry || !entry.buffer) return;
+        if (!entry || !entry.buffer || !state.workletNode) return;
 
         // Toggle: same sample → pause/resume
         if (state.activeKey === key) {
           if (state.isPlaying) {
             state.isPlaying = false;
+            state.workletNode.port.postMessage({ type: 'pause' });
             cancelAnimationFrame(state.animFrame);
             const btn = document.getElementById(elementId);
             if (btn) { btn.textContent = '▶'; btn.classList.remove('active'); }
@@ -1322,6 +1260,7 @@
             return;
           } else {
             state.isPlaying = true;
+            state.workletNode.port.postMessage({ type: 'resume' });
             const btn = document.getElementById(elementId);
             if (btn) { btn.classList.add('active'); btn.textContent = '⏸'; }
             if (rowId) { const row = document.getElementById(rowId); if (row) row.classList.add('playing'); }
@@ -1333,16 +1272,13 @@
 
         // Crossfade to new sample (same position maintained)
         if (state.isPlaying && state.activeKey) {
-          state.fadingInKey = key;
-          state.fadingState = 1;
-          state.fadingPosition = 0;
+          state.workletNode.port.postMessage({ type: 'switch', key: key });
         } else {
-          state.activeKey = key;
-          state.isPlaying = true;
-          state.fadingState = 2;
-          state.fadingPosition = 0;
+          state.workletNode.port.postMessage({ type: 'play', key: key });
         }
 
+        state.activeKey = key;
+        state.isPlaying = true;
         state.playingId = elementId;
 
         // Update UI
@@ -1450,9 +1386,13 @@
           const rect = canvas.getBoundingClientRect();
           const x = e.clientX - rect.left;
           const ratio = x / rect.width;
-          state.currentSample = Math.floor(ratio * state.totalSamples);
-          state.lastCallbackSample = state.currentSample;
+          const newPos = Math.floor(ratio * state.totalSamples);
+          state.currentSample = newPos;
+          state.lastCallbackSample = newPos;
           state.lastCallbackTime = state.audioCtx ? state.audioCtx.currentTime : 0;
+          if (state.workletNode) {
+            state.workletNode.port.postMessage({ type: 'seek', position: newPos });
+          }
           drawPlayhead();
         };
       }
