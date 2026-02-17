@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Test Słuchowy — AB / ABX / Preferencja</title>
-    <script src="https://unpkg.com/wavesurfer.js@7"></script>
+
     <style>
         @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700&family=JetBrains+Mono:wght@400;500&display=swap');
 
@@ -653,7 +653,13 @@
 
                 <!-- Waveform visualization -->
                 <div class="waveform-container" id="waveform-container" style="display: none;">
-                    <div id="waveform"></div>
+                    <canvas id="waveform-canvas" style="width:100%;height:64px;cursor:pointer;"></canvas>
+                    <div style="display:flex;justify-content:space-between;padding:0 0.5rem;">
+                        <span id="waveform-time-current"
+                            style="font-family:'JetBrains Mono',monospace;font-size:0.7rem;color:var(--text-dim)">0:00</span>
+                        <span id="waveform-time-total"
+                            style="font-family:'JetBrains Mono',monospace;font-size:0.7rem;color:var(--text-dim)">0:00</span>
+                    </div>
                 </div>
 
                 <div class="volume-control">
@@ -710,14 +716,25 @@
             participant: {},
             audioCtx: null,
             gainNode: null,       // master volume gain
-            audioPool: {},        // { key: { audio, source, gain, url } }
+            audioPool: {},        // { key: { buffer, url } }  — AudioBuffer objects
             activeKey: null,      // key of currently audible sample
             isPlaying: false,
             playingId: null,
             trialStart: null,
             shuffledOrder: [],
             volume: 0.8,
-            wavesurfer: null,     // WaveSurfer instance
+            // AudioBuffer engine state
+            scriptNode: null,
+            dummySource: null,
+            currentSample: 0,     // current playback position in samples
+            totalSamples: 0,      // total length in samples
+            sampleRate: 48000,
+            fadingState: 0,       // 0=none, 1=fade-out, 2=fade-in
+            fadingPosition: 0,
+            fadingMaxSamples: 240, // ~5ms at 48kHz
+            fadingInKey: null,     // key of buffer fading in
+            animFrame: null,
+            waveformImageData: null,
         };
 
         // ═══════════════════════════════════════════════════════════════
@@ -1100,10 +1117,9 @@
         }
 
         // ═══════════════════════════════════════════════════════════════
-        // AUDIO PLAYBACK — Synchronized Pool
+        // AUDIO ENGINE — AudioBuffer + ScriptProcessorNode
+        // (sample-accurate position tracking, no <audio> elements)
         // ═══════════════════════════════════════════════════════════════
-
-        let waveformImageData = null;
 
         function ensureAudioCtx() {
             if (!state.audioCtx) {
@@ -1123,18 +1139,106 @@
             }
         }
 
+        function initScriptProcessor() {
+            if (state.scriptNode) return;
+            const bufferSize = 4096;
+            const firstBuf = Object.values(state.audioPool)[0]?.buffer;
+            const channels = firstBuf ? Math.min(firstBuf.numberOfChannels, 2) : 2;
+
+            state.dummySource = state.audioCtx.createBufferSource();
+            state.dummySource.loop = true;
+            state.dummySource.buffer = state.audioCtx.createBuffer(1, bufferSize, state.audioCtx.sampleRate);
+
+            state.scriptNode = state.audioCtx.createScriptProcessor(bufferSize, 1, channels);
+            state.scriptNode.onaudioprocess = processAudio;
+
+            state.dummySource.connect(state.scriptNode);
+            state.scriptNode.connect(state.gainNode);
+            state.dummySource.start();
+        }
+
+        function processAudio(e) {
+            const out = e.outputBuffer;
+            const numChannels = out.numberOfChannels;
+
+            if (!state.isPlaying || !state.activeKey || !state.audioPool[state.activeKey]) {
+                for (let ch = 0; ch < numChannels; ch++) {
+                    const od = out.getChannelData(ch);
+                    for (let i = 0; i < out.length; i++) od[i] = 0;
+                }
+                return;
+            }
+
+            const activeBuffer = state.audioPool[state.activeKey].buffer;
+            const totalSamples = activeBuffer.length;
+
+            for (let ch = 0; ch < numChannels; ch++) {
+                const od = out.getChannelData(ch);
+                const srcCh = ch < activeBuffer.numberOfChannels ? ch : 0;
+                const inputData = activeBuffer.getChannelData(srcCh);
+                let pos = state.currentSample;
+
+                for (let i = 0; i < out.length; i++) {
+                    if (state.fadingState === 1) {
+                        const ramp = 0.5 * (1 + Math.cos(Math.PI * state.fadingPosition / (state.fadingMaxSamples - 1)));
+                        od[i] = inputData[pos] * ramp;
+                        if (ch === 0) state.fadingPosition++;
+                        if (state.fadingPosition >= state.fadingMaxSamples && ch === numChannels - 1) {
+                            if (state.fadingInKey) {
+                                state.activeKey = state.fadingInKey;
+                                state.fadingInKey = null;
+                                state.fadingState = 2;
+                                state.fadingPosition = 0;
+                            } else {
+                                state.isPlaying = false;
+                                state.fadingState = 0;
+                                state.fadingPosition = 0;
+                                for (let j = i + 1; j < out.length; j++) od[j] = 0;
+                                break;
+                            }
+                        }
+                    } else if (state.fadingState === 2) {
+                        const newBuf = state.audioPool[state.activeKey].buffer;
+                        const newData = newBuf.getChannelData(ch < newBuf.numberOfChannels ? ch : 0);
+                        const ramp = 0.5 * (1 - Math.cos(Math.PI * state.fadingPosition / (state.fadingMaxSamples - 1)));
+                        od[i] = newData[pos] * ramp;
+                        if (ch === 0) state.fadingPosition++;
+                        if (state.fadingPosition >= state.fadingMaxSamples && ch === numChannels - 1) {
+                            state.fadingState = 0;
+                            state.fadingPosition = 0;
+                        }
+                    } else {
+                        od[i] = inputData[pos];
+                    }
+
+                    if (ch === 0) pos++;
+                    if (pos >= totalSamples) pos = 0;
+                }
+
+                if (ch === numChannels - 1) {
+                    state.currentSample = pos;
+                }
+            }
+        }
+
         function cleanupAudioPool() {
-            if (state.wavesurfer) { state.wavesurfer.destroy(); state.wavesurfer = null; }
-            Object.values(state.audioPool).forEach(entry => {
-                entry.audio.pause();
-                entry.audio.src = '';
-                try { entry.source.disconnect(); } catch (e) { }
-                try { entry.gain.disconnect(); } catch (e) { }
-            });
+            if (state.scriptNode) {
+                state.scriptNode.onaudioprocess = null;
+                try { state.scriptNode.disconnect(); } catch (e) { }
+                state.scriptNode = null;
+            }
+            if (state.dummySource) {
+                try { state.dummySource.disconnect(); } catch (e) { }
+                state.dummySource = null;
+            }
+            cancelAnimationFrame(state.animFrame);
             state.audioPool = {};
             state.activeKey = null;
             state.isPlaying = false;
             state.playingId = null;
+            state.currentSample = 0;
+            state.totalSamples = 0;
+            state.waveformImageData = null;
 
             const container = document.getElementById('waveform-container');
             if (container) container.style.display = 'none';
@@ -1151,35 +1255,51 @@
                 { key: 'a', url: trial.sample_a.url },
                 { key: 'b', url: trial.sample_b.url }
             ];
-            // For ABX, X uses same URL as a or b (no extra element needed)
+
+            let loaded = 0;
+            const total = entries.length;
+
             entries.forEach(({ key, url }) => {
-                const audio = new Audio(url);
-                audio.crossOrigin = 'anonymous';
-                audio.loop = true;
-                audio.preload = 'auto';
-                const source = state.audioCtx.createMediaElementSource(audio);
-                const gain = state.audioCtx.createGain();
-                gain.gain.value = 0;
-                source.connect(gain);
-                gain.connect(state.gainNode);
-                state.audioPool[key] = { audio, source, gain, url };
+                const xhr = new XMLHttpRequest();
+                xhr.open('GET', url, true);
+                xhr.responseType = 'arraybuffer';
+                xhr.onload = function () {
+                    state.audioCtx.decodeAudioData(xhr.response, function (audioBuffer) {
+                        state.audioPool[key] = { buffer: audioBuffer, url: url };
+                        loaded++;
+                        if (loaded === total) {
+                            onAllBuffersLoaded();
+                        }
+                    }, function (err) {
+                        console.error('Failed to decode:', url, err);
+                        loaded++;
+                    });
+                };
+                xhr.onerror = function () {
+                    console.error('Failed to load:', url);
+                    loaded++;
+                };
+                xhr.send();
             });
         }
 
-        function stopAudio() {
-            if (state.isPlaying && state.audioCtx && state.activeKey) {
-                const entry = state.audioPool[state.activeKey];
-                if (entry) {
-                    const now = state.audioCtx.currentTime;
-                    entry.gain.gain.setValueAtTime(entry.gain.gain.value, now);
-                    entry.gain.gain.linearRampToValueAtTime(0, now + 0.03);
-                }
-                setTimeout(() => {
-                    Object.values(state.audioPool).forEach(e => { e.audio.pause(); e.gain.gain.value = 0; });
-                }, 35);
-            } else {
-                Object.values(state.audioPool).forEach(e => { e.audio.pause(); e.gain.gain.value = 0; });
+        function onAllBuffersLoaded() {
+            const refBuf = state.audioPool['a']?.buffer || Object.values(state.audioPool)[0]?.buffer;
+            if (refBuf) {
+                state.totalSamples = refBuf.length;
+                state.sampleRate = refBuf.sampleRate;
+                state.fadingMaxSamples = Math.floor(state.sampleRate * 0.005);
             }
+            initScriptProcessor();
+        }
+
+        function stopAudio() {
+            if (state.isPlaying) {
+                state.fadingInKey = null;
+                state.fadingState = 1;
+                state.fadingPosition = 0;
+            }
+            cancelAnimationFrame(state.animFrame);
             state.activeKey = null;
             state.isPlaying = false;
             state.playingId = null;
@@ -1194,19 +1314,16 @@
             const origIdx = state.shuffledOrder[state.currentTrial];
             const trial = config.trials[origIdx];
 
-            // Resolve which pool key to use (X maps to a or b)
             let poolKey = which;
-            if (which === 'x') poolKey = trial._x_is; // 'a' or 'b'
+            if (which === 'x') poolKey = trial._x_is;
 
             const entry = state.audioPool[poolKey];
-            if (!entry) return;
+            if (!entry || !entry.buffer) return;
             const elementId = `play-${which}`;
-            const now = state.audioCtx.currentTime;
 
             // Toggle: same sample → pause/resume
             if (state.playingId === elementId) {
                 if (state.isPlaying) {
-                    Object.values(state.audioPool).forEach(e => e.audio.pause());
                     state.isPlaying = false;
                     cancelAnimationFrame(state.animFrame);
                     const btn = document.getElementById(elementId);
@@ -1215,7 +1332,6 @@
                     document.getElementById('loop-info').style.display = 'none';
                     return;
                 } else {
-                    Object.values(state.audioPool).forEach(e => e.audio.play().catch(() => { }));
                     state.isPlaying = true;
                     const btn = document.getElementById(elementId);
                     if (btn) { btn.classList.add('active'); btn.textContent = '⏸'; }
@@ -1227,27 +1343,18 @@
                 }
             }
 
-            // First play: start all audio elements simultaneously
-            if (!state.isPlaying) {
-                Object.values(state.audioPool).forEach(e => {
-                    e.gain.gain.setValueAtTime(0, now);
-                    e.audio.play().catch(err => console.warn('play failed:', err));
-                });
+            // Crossfade to new sample (same position maintained)
+            if (state.isPlaying && state.activeKey) {
+                state.fadingInKey = poolKey;
+                state.fadingState = 1;
+                state.fadingPosition = 0;
+            } else {
+                state.activeKey = poolKey;
                 state.isPlaying = true;
+                state.fadingState = 2;
+                state.fadingPosition = 0;
             }
 
-            // Crossfade: mute others, unmute target
-            Object.entries(state.audioPool).forEach(([k, e]) => {
-                if (k === poolKey) {
-                    e.gain.gain.setValueAtTime(e.gain.gain.value, now);
-                    e.gain.gain.linearRampToValueAtTime(1.0, now + 0.03);
-                } else if (e.gain.gain.value > 0) {
-                    e.gain.gain.setValueAtTime(e.gain.gain.value, now);
-                    e.gain.gain.linearRampToValueAtTime(0, now + 0.03);
-                }
-            });
-
-            state.activeKey = poolKey;
             state.playingId = elementId;
 
             // Update UI
@@ -1259,43 +1366,117 @@
             if (card) card.classList.add('playing');
             document.getElementById('loop-info').style.display = 'flex';
 
-            // Waveform — show container and create/update WaveSurfer
+            // Show waveform
             const container = document.getElementById('waveform-container');
             if (container) container.style.display = 'block';
-            initWaveSurfer(entry);
+            drawWaveform(entry.buffer);
+            startPlayheadAnimation();
         }
 
         // ═══════════════════════════════════════════════════════════════
-        // WAVEFORM VISUALIZATION (WaveSurfer.js)
+        // WAVEFORM VISUALIZATION (Canvas — sample-accurate)
         // ═══════════════════════════════════════════════════════════════
 
-        function initWaveSurfer(entry) {
-            // Destroy previous instance
-            if (state.wavesurfer) { state.wavesurfer.destroy(); state.wavesurfer = null; }
+        function formatTime(seconds) {
+            const m = Math.floor(seconds / 60);
+            const s = Math.floor(seconds % 60);
+            return `${m}:${s.toString().padStart(2, '0')}`;
+        }
 
-            state.wavesurfer = WaveSurfer.create({
-                container: '#waveform',
-                media: entry.audio,
-                height: 64,
-                waveColor: '#3b82f650',
-                progressColor: '#3b82f6',
-                cursorColor: '#f59e0b',
-                cursorWidth: 2,
-                barWidth: 2,
-                barGap: 1,
-                barRadius: 2,
-                normalize: true,
-                interact: true,
+        function drawWaveform(audioBuffer) {
+            const canvas = document.getElementById('waveform-canvas');
+            if (!canvas || !audioBuffer) return;
+            const dpr = window.devicePixelRatio || 1;
+            const w = canvas.clientWidth;
+            const h = canvas.clientHeight;
+            canvas.width = w * dpr;
+            canvas.height = h * dpr;
+            const ctx = canvas.getContext('2d');
+            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+            const data = audioBuffer.getChannelData(0);
+            const step = Math.ceil(data.length / w);
+            ctx.clearRect(0, 0, w, h);
+
+            const barWidth = 2;
+            const barGap = 1;
+            const barStep = barWidth + barGap;
+            let maxVal = 0;
+            const bars = [];
+            for (let x = 0; x < w; x += barStep) {
+                const start = Math.floor((x / w) * data.length);
+                const end = Math.min(start + step * barStep, data.length);
+                let sum = 0;
+                for (let j = start; j < end; j++) sum += Math.abs(data[j]);
+                const avg = sum / (end - start);
+                bars.push(avg);
+                if (avg > maxVal) maxVal = avg;
+            }
+
+            ctx.fillStyle = '#3b82f650';
+            bars.forEach((val, i) => {
+                const barH = (val / maxVal) * (h * 0.85);
+                const x = i * barStep;
+                const y = (h - barH) / 2;
+                ctx.beginPath();
+                ctx.roundRect(x, y, barWidth, barH, 2);
+                ctx.fill();
             });
 
-            // On seek via wavesurfer click, sync all pool elements
-            state.wavesurfer.on('seeking', (time) => {
-                Object.entries(state.audioPool).forEach(([k, e]) => {
-                    if (e.audio !== entry.audio && e.audio.duration) {
-                        e.audio.currentTime = time;
-                    }
-                });
-            });
+            state.waveformImageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+
+            const totalTime = audioBuffer.length / audioBuffer.sampleRate;
+            const totalEl = document.getElementById('waveform-time-total');
+            if (totalEl) totalEl.textContent = formatTime(totalTime);
+
+            canvas.onclick = function (e) {
+                const rect = canvas.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const ratio = x / rect.width;
+                state.currentSample = Math.floor(ratio * state.totalSamples);
+                drawPlayhead();
+            };
+        }
+
+        function drawPlayhead() {
+            const canvas = document.getElementById('waveform-canvas');
+            if (!canvas || !state.waveformImageData) return;
+            if (!state.totalSamples) return;
+
+            const ctx = canvas.getContext('2d');
+            const dpr = window.devicePixelRatio || 1;
+            const w = canvas.clientWidth;
+            const h = canvas.clientHeight;
+
+            ctx.putImageData(state.waveformImageData, 0, 0);
+
+            const progress = state.currentSample / state.totalSamples;
+            const x = progress * w;
+
+            ctx.save();
+            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+            ctx.fillStyle = '#3b82f618';
+            ctx.fillRect(0, 0, x, h);
+            ctx.strokeStyle = '#f59e0b';
+            ctx.lineWidth = 2;
+            ctx.shadowColor = '#f59e0b';
+            ctx.shadowBlur = 6;
+            ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke();
+            ctx.restore();
+
+            const currentTime = state.currentSample / state.sampleRate;
+            const timeEl = document.getElementById('waveform-time-current');
+            if (timeEl) timeEl.textContent = formatTime(currentTime);
+        }
+
+        function startPlayheadAnimation() {
+            cancelAnimationFrame(state.animFrame);
+            function animate() {
+                if (!state.isPlaying) return;
+                drawPlayhead();
+                state.animFrame = requestAnimationFrame(animate);
+            }
+            state.animFrame = requestAnimationFrame(animate);
         }
 
         // ═══════════════════════════════════════════════════════════════
