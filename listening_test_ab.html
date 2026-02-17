@@ -1680,8 +1680,12 @@
 
         async function submitToWebhook(results) {
             const statusEl = document.getElementById('submit-status');
+            if (!statusEl) return;
+
             try {
-                statusEl.innerHTML = '<span style="color: var(--warn);">Wysyłanie wyników...</span>';
+                // Yellow indication
+                statusEl.innerHTML = '<span style="color: var(--warn); display: flex; align-items: center; justify-content: center; gap: 0.5rem;">⏳ Wysyłanie wyników...</span>';
+
                 await fetch(config.webhook, {
                     method: 'POST',
                     mode: 'no-cors',
@@ -1693,7 +1697,14 @@
                         results: results
                     })
                 });
-                statusEl.innerHTML = '<span style="color: var(--success);">✓ Wyniki wysłane pomyślnie</span>';
+
+                // Green indication + Close instruction
+                statusEl.innerHTML = `
+                    <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+                        <span style="color: var(--success); font-size: 1.1rem;">✓ Wyniki wysłane pomyślnie</span>
+                        <span style="color: var(--text-dim); font-size: 0.9rem;">Możesz teraz bezpiecznie zamknąć tę kartę.</span>
+                    </div>
+                `;
             } catch (e) {
                 statusEl.innerHTML = `<span style="color: var(--danger);">Błąd wysyłania: ${e.message}. Pobierz wyniki ręcznie.</span>`;
             }
