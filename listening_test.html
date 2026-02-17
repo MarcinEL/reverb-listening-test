@@ -794,6 +794,9 @@
         fadingInKey: null,     // key of buffer fading in
         animFrame: null,
         waveformImageData: null,
+        // Playhead interpolation state
+        lastCallbackTime: 0,
+        lastCallbackSample: 0,
       };
 
       // ═══════════════════════════════════════════════════════════════
@@ -1118,7 +1121,7 @@
 
       function initScriptProcessor() {
         if (state.scriptNode) return; // already initialized
-        const bufferSize = 8192;
+        const bufferSize = 1024; // ~21ms at 48kHz — responsive switching & smooth playhead
         // Determine channel count from first available buffer
         const firstBuf = Object.values(state.audioPool)[0]?.buffer;
         const channels = firstBuf ? Math.min(firstBuf.numberOfChannels, 2) : 2;
@@ -1200,6 +1203,10 @@
             state.currentSample = pos;
           }
         }
+
+        // Track timing for smooth playhead interpolation
+        state.lastCallbackTime = state.audioCtx.currentTime;
+        state.lastCallbackSample = state.currentSample;
       }
 
       function cleanupAudioPool() {
@@ -1380,7 +1387,7 @@
         if (!canvas || !audioBuffer) return;
 
         // Optimize context
-        const ctx = canvas.getContext('2d', { willReadFrequently: true });
+        const ctx = canvas.getContext('2d');
 
         const dpr = window.devicePixelRatio || 1;
         const w = canvas.clientWidth;
@@ -1444,8 +1451,17 @@
           const x = e.clientX - rect.left;
           const ratio = x / rect.width;
           state.currentSample = Math.floor(ratio * state.totalSamples);
+          state.lastCallbackSample = state.currentSample;
+          state.lastCallbackTime = state.audioCtx ? state.audioCtx.currentTime : 0;
           drawPlayhead();
         };
+      }
+
+      function getInterpolatedSample() {
+        if (!state.isPlaying || !state.audioCtx || !state.totalSamples) return state.currentSample;
+        const elapsed = state.audioCtx.currentTime - state.lastCallbackTime;
+        const extraSamples = Math.floor(elapsed * state.sampleRate);
+        return (state.lastCallbackSample + extraSamples) % state.totalSamples;
       }
 
       function drawPlayhead() {
@@ -1453,7 +1469,7 @@
         if (!canvas || !state.offscreenCanvas) return;
         if (!state.totalSamples) return;
 
-        const ctx = canvas.getContext('2d', { willReadFrequently: true });
+        const ctx = canvas.getContext('2d');
         const dpr = window.devicePixelRatio || 1;
         const w = canvas.clientWidth;
         const h = canvas.clientHeight;
@@ -1463,7 +1479,8 @@
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         ctx.drawImage(state.offscreenCanvas, 0, 0);
 
-        const progress = state.currentSample / state.totalSamples;
+        const interpolatedSample = getInterpolatedSample();
+        const progress = interpolatedSample / state.totalSamples;
         const x = progress * w;
 
         ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -1478,7 +1495,7 @@
         ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke();
 
         // Time display
-        const currentTime = state.currentSample / state.sampleRate;
+        const currentTime = interpolatedSample / state.sampleRate;
         const timeEl = document.getElementById('waveform-time-current');
         if (timeEl) timeEl.textContent = formatTime(currentTime);
       }

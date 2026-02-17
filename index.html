@@ -794,6 +794,9 @@
         fadingInKey: null,     // key of buffer fading in
         animFrame: null,
         waveformImageData: null,
+        // Playhead interpolation state
+        lastCallbackTime: 0,
+        lastCallbackSample: 0,
       };
 
       // ═══════════════════════════════════════════════════════════════
@@ -811,7 +814,7 @@
             { id: "fdn_wojda", label: "Sample A", url: "samples/wokal_poglosie_1s_mix.wav" },
             { id: "hidden_ref", label: "Sample B", url: "samples/wokal_ref_1s_mix.wav" },
             { id: "dragonfly", label: "Sample C", url: "samples/wokal_dragonfly_1s_mix.wav" },
-            { id: "openverb", label: "Sample D", url: "samples/wokal_orilriver_1s_mix.wav" }, // Note: openverb ID but orilriver file? Keeping ID for now but correcting URL based on pattern
+            { id: "openverb", label: "Sample D", url: "samples/wokal_orilriver_1s_mix.wav" },
             { id: "orilriver", label: "Sample E", url: "samples/wokal_orilriver_1s_mix.wav" },
             { id: "valhalla", label: "Sample F", url: "samples/wokal_vintageverb_1s_mix.wav" },
             { id: "anchor", label: "Sample G", url: "samples/wokal_ref_1s_mix_anchor.wav" }
@@ -826,7 +829,7 @@
             { id: "fdn_wojda", label: "Sample A", url: "samples/perkusja_poglosie_1s_mix.wav" },
             { id: "hidden_ref", label: "Sample B", url: "samples/perkusja_ref_1s_mix.wav" },
             { id: "dragonfly", label: "Sample C", url: "samples/perkusja_dragonfly_1s_mix.wav" },
-            { id: "openverb", label: "Sample D", url: "samples/perkusja_orilriver_1s_mix.wav" }, // Check logic here, maybe openverb is missing? User config had orilriver twice?
+            { id: "openverb", label: "Sample D", url: "samples/perkusja_orilriver_1s_mix.wav" },
             { id: "orilriver", label: "Sample E", url: "samples/perkusja_orilriver_1s_mix.wav" },
             { id: "valhalla", label: "Sample F", url: "samples/perkusja_vintageverb_1s_mix.wav" },
             { id: "anchor", label: "Sample G", url: "samples/perkusja_ref_1s_mix_anchor.wav" }
@@ -1118,7 +1121,7 @@
 
       function initScriptProcessor() {
         if (state.scriptNode) return; // already initialized
-        const bufferSize = 8192;
+        const bufferSize = 1024; // ~21ms at 48kHz — responsive switching & smooth playhead
         // Determine channel count from first available buffer
         const firstBuf = Object.values(state.audioPool)[0]?.buffer;
         const channels = firstBuf ? Math.min(firstBuf.numberOfChannels, 2) : 2;
@@ -1200,6 +1203,10 @@
             state.currentSample = pos;
           }
         }
+
+        // Track timing for smooth playhead interpolation
+        state.lastCallbackTime = state.audioCtx.currentTime;
+        state.lastCallbackSample = state.currentSample;
       }
 
       function cleanupAudioPool() {
@@ -1369,10 +1376,6 @@
       // WAVEFORM VISUALIZATION (Canvas — sample-accurate)
       // ═══════════════════════════════════════════════════════════════
 
-      // ═══════════════════════════════════════════════════════════════
-      // WAVEFORM VISUALIZATION (Canvas — offscreen optimized)
-      // ═══════════════════════════════════════════════════════════════
-
       function formatTime(seconds) {
         const m = Math.floor(seconds / 60);
         const s = Math.floor(seconds % 60);
@@ -1383,8 +1386,8 @@
         const canvas = document.getElementById('waveform-canvas');
         if (!canvas || !audioBuffer) return;
 
-        // Use willReadFrequently to optimize (though we will try to avoid reading if possible)
-        const ctx = canvas.getContext('2d', { willReadFrequently: true });
+        // Optimize context
+        const ctx = canvas.getContext('2d');
 
         const dpr = window.devicePixelRatio || 1;
         const w = canvas.clientWidth;
@@ -1406,7 +1409,7 @@
         let maxVal = 0;
         const bars = [];
 
-        // Calculate maxVal first
+        // Calculate maxVal
         for (let x = 0; x < w; x += barStep) {
           const start = Math.floor((x / w) * data.length);
           const end = Math.min(start + step * barStep, data.length);
@@ -1417,7 +1420,7 @@
           if (avg > maxVal) maxVal = avg;
         }
 
-        // Draw bars
+        // Draw
         ctx.fillStyle = VISUAL_THEME.waveform.color;
         bars.forEach((val, i) => {
           const barH = maxVal > 0 ? (val / maxVal) * (h * VISUAL_THEME.waveform.heightScale) : 0;
@@ -1428,7 +1431,7 @@
           ctx.fill();
         });
 
-        // Store offscreen copy of the waveform ONLY
+        // Store offscreen copy
         if (!state.offscreenCanvas) {
           state.offscreenCanvas = document.createElement('canvas');
         }
@@ -1448,50 +1451,51 @@
           const x = e.clientX - rect.left;
           const ratio = x / rect.width;
           state.currentSample = Math.floor(ratio * state.totalSamples);
+          state.lastCallbackSample = state.currentSample;
+          state.lastCallbackTime = state.audioCtx ? state.audioCtx.currentTime : 0;
           drawPlayhead();
         };
       }
 
+      function getInterpolatedSample() {
+        if (!state.isPlaying || !state.audioCtx || !state.totalSamples) return state.currentSample;
+        const elapsed = state.audioCtx.currentTime - state.lastCallbackTime;
+        const extraSamples = Math.floor(elapsed * state.sampleRate);
+        return (state.lastCallbackSample + extraSamples) % state.totalSamples;
+      }
+
       function drawPlayhead() {
         const canvas = document.getElementById('waveform-canvas');
-        // Check for offscreen canvas instead of waveformImageData
         if (!canvas || !state.offscreenCanvas) return;
         if (!state.totalSamples) return;
 
-        const ctx = canvas.getContext('2d', { willReadFrequently: true });
+        const ctx = canvas.getContext('2d');
         const dpr = window.devicePixelRatio || 1;
         const w = canvas.clientWidth;
         const h = canvas.clientHeight;
 
-        // 1. Clear and redraw static waveform from offscreen canvas
-        // This is much faster than putImageData
-        ctx.resetTransform(); // clear transform for direct pixel copy
+        // Restore from offscreen (fast)
+        ctx.resetTransform();
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         ctx.drawImage(state.offscreenCanvas, 0, 0);
 
-        // 2. Draw Playhead Overlay
-        const progress = state.currentSample / state.totalSamples;
-        // visual X position
+        const interpolatedSample = getInterpolatedSample();
+        const progress = interpolatedSample / state.totalSamples;
         const x = progress * w;
 
         ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-
-        // Progress shade
+        // Progress overlay
         ctx.fillStyle = VISUAL_THEME.waveform.progressColor;
         ctx.fillRect(0, 0, x, h);
-
         // Cursor line
         ctx.strokeStyle = VISUAL_THEME.playhead.color;
         ctx.lineWidth = VISUAL_THEME.playhead.width;
         ctx.shadowColor = VISUAL_THEME.playhead.shadowColor;
         ctx.shadowBlur = VISUAL_THEME.playhead.shadowBlur;
-        ctx.beginPath();
-        ctx.moveTo(x, 0);
-        ctx.lineTo(x, h);
-        ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke();
 
         // Time display
-        const currentTime = state.currentSample / state.sampleRate;
+        const currentTime = interpolatedSample / state.sampleRate;
         const timeEl = document.getElementById('waveform-time-current');
         if (timeEl) timeEl.textContent = formatTime(currentTime);
       }
