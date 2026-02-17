@@ -1,32 +1,81 @@
 {
-  "title": "Ocena jakości rewerbu algorytmicznego",
+  "title": "Ocena jakości pogłosu FDN",
   "randomize": true,
   "webhook": "https://script.google.com/macros/s/AKfycbxr1_dclTANVgWiPm5bPPT4py7EfY-Spz45pijJaBj2cHo1JgWwU7520jUlnn_pl4WN/exec",
   "scenarios": [
     {
-      "name": "Perkusja — Room",
-      "description": "Porównaj reverb typu Room na ścieżce perkusyjnej. Zwróć uwagę na gęstość echa i metaliczność.",
-      "reference": "samples/Snare_LargeHall_ref.wav",
+      "name": "Wokal żeński — Room (krótki pogłos)",
+      "description": "Porównaj jakość rewerbu typu Hall na wokalu żeńskim. Oceń naturalność, gładkość ogona i brak artefaktów.",
+      "reference": "samples/wokal_ref_1s_mix.wav",
+      "dry": "samples/wokal_dry.wav",
       "samples": [
         {
           "id": "fdn_wojda",
           "label": "Sample A",
-          "url": "samples/Snare_LargeHall_Poglosie_Mix.wav"
+          "url": "samples/wokal_poglosie_1s_mix.wav"
         },
         {
           "id": "hidden_ref",
           "label": "Sample B",
-          "url": "samples/Snare_LargeHall_ref.wav"
+          "url": "samples/wokal_ref_1s_mix.wav"
+        },
+        {
+          "id": "dragonfly",
+          "label": "Sample C",
+          "url": "samples/wokal_dragonfly_1s_mix.wav"
         },
         {
           "id": "orilriver",
           "label": "Sample E",
-          "url": "samples/Snare_LargeHall_OrilRiver_Mix.wav"
+          "url": "samples/wokal_orilriver_1s_mix.wav"
+        },
+        {
+          "id": "valhalla",
+          "label": "Sample F",
+          "url": "samples/wokal_ref_1s_mix_anchor.wav"
         },
         {
           "id": "anchor",
           "label": "Sample G",
-          "url": "samples/Snare_LargeHall_anchor.wav"
+          "url": "samples/vocal_anchor.wav"
+        }
+      ]
+    },
+    {
+      "name": "Perkusja — Room (krótki pogłos)",
+      "description": "Porównaj reverb typu Room na ścieżce perkusyjnej. Zwróć uwagę na gęstość echa i metaliczność.",
+      "reference": "samples/perkusja_ref_1s_mix.wav",
+      "dry": "samples/perkusja_dry.wav",
+      "samples": [
+        {
+          "id": "fdn_wojda",
+          "label": "Sample A",
+          "url": "samples/perkusja_poglosie_1s_mix.wav"
+        },
+        {
+          "id": "hidden_ref",
+          "label": "Sample B",
+          "url": "samples/perkusja_ref_1s_mix.wav"
+        },
+        {
+          "id": "dragonfly",
+          "label": "Sample C",
+          "url": "samples/perkusja_dragonfly_1s_mix.wav"
+        },
+        {
+          "id": "orilriver",
+          "label": "Sample E",
+          "url": "samples/perkusja_orilriver_1s_mix.wav"
+        },
+        {
+          "id": "valhalla",
+          "label": "Sample F",
+          "url": "samples/perkusja_ref_1s_mix_anchor.wav"
+        },
+        {
+          "id": "anchor",
+          "label": "Sample G",
+          "url": "samples/perkusja_anchor.wav"
         }
       ]
     }
