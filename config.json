@@ -5,7 +5,7 @@
   "scenarios": [
     {
       "name": "Wokal żeński — Room (krótki pogłos)",
-      "description": "Porównaj jakość rewerbu typu Hall na wokalu żeńskim. Oceń naturalność, gładkość ogona i brak artefaktów.",
+      "description": "Porównaj i oceń jakość pogłosu typu Room na wokalu żeńskim. Oceń naturalność brzmienia pogłosu.",
       "reference": "samples/wokal_ref_1s_mix.wav",
       "dry": "samples/wokal_dry.wav",
       "samples": [
@@ -26,19 +26,19 @@
         },
         {
           "id": "orilriver",
-          "label": "Sample E",
+          "label": "Sample D",
           "url": "samples/wokal_orilriver_1s_mix.wav"
         },
         {
           "id": "anchor",
-          "label": "Sample G",
+          "label": "Sample E",
           "url": "samples/wokal_ref_1s_mix_anchor.wav"
         }
       ]
     },
     {
       "name": "Perkusja — Room (krótki pogłos)",
-      "description": "Porównaj reverb typu Room na ścieżce perkusyjnej. Zwróć uwagę na gęstość echa i metaliczność.",
+      "description": "Porównaj i oceń jakość pogłosu typu Room na ścieżce perkusyjnej. Zwróć uwagę na gęstość echa i metaliczność brzmienia.",
       "reference": "samples/perkusja_ref_1s_mix.wav",
       "dry": "samples/perkusja_dry.wav",
       "samples": [
@@ -59,13 +59,79 @@
         },
         {
           "id": "orilriver",
-          "label": "Sample E",
+          "label": "Sample D",
           "url": "samples/perkusja_orilriver_1s_mix.wav"
         },
         {
           "id": "anchor",
-          "label": "Sample G",
+          "label": "Sample E",
           "url": "samples/perkusja_ref_1s_mix_anchor.wav"
+        }
+      ]
+    },
+    {
+      "name": "Fortepian — Room (długi pogłos)",
+      "description": "Porównaj i oceń jakość pogłosu typu Room na ścieżce fortepianu.",
+      "reference": "samples/fortepian_ref_1s_mix.wav",
+      "dry": "samples/fortepian_dry.wav",
+      "samples": [
+        {
+          "id": "fdn_wojda",
+          "label": "Sample A",
+          "url": "samples/fortepian_poglosie_1s_mix.wav"
+        },
+        {
+          "id": "hidden_ref",
+          "label": "Sample B",
+          "url": "samples/fortepian_ref_1s_mix.wav"
+        },
+        {
+          "id": "dragonfly",
+          "label": "Sample C",
+          "url": "samples/fortepian_dragonfly_1s_mix.wav"
+        },
+        {
+          "id": "orilriver",
+          "label": "Sample D",
+          "url": "samples/fortepian_orilriver_1s_mix.wav"
+        },
+        {
+          "id": "anchor",
+          "label": "Sample E",
+          "url": "samples/fortepian_ref_1s_mix_anchor.wav"
+        }
+      ]
+    },
+    {
+      "name": "Miks — Room (długi pogłos)",
+      "description": "Porównaj i oceń jakość pogłosu typu Room na ścieżce miksu całego utworu.",
+      "reference": "samples/miks_ref_1s_mix.wav",
+      "dry": "samples/miks_dry.wav",
+      "samples": [
+        {
+          "id": "fdn_wojda",
+          "label": "Sample A",
+          "url": "samples/miks_poglosie_1s_mix.wav"
+        },
+        {
+          "id": "hidden_ref",
+          "label": "Sample B",
+          "url": "samples/miks_ref_1s_mix.wav"
+        },
+        {
+          "id": "dragonfly",
+          "label": "Sample C",
+          "url": "samples/miks_dragonfly_1s_mix.wav"
+        },
+        {
+          "id": "orilriver",
+          "label": "Sample D",
+          "url": "samples/miks_orilriver_1s_mix.wav"
+        },
+        {
+          "id": "anchor",
+          "label": "Sample E",
+          "url": "samples/miks_ref_1s_mix_anchor.wav"
         }
       ]
     }
