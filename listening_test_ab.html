@@ -392,6 +392,7 @@
             flex: 1;
             accent-color: var(--accent);
             height: 4px;
+            touch-action: none;
         }
 
         .volume-value {
@@ -1738,6 +1739,27 @@
         }
 
         init();
+
+        // ═══════════════════════════════════════════════════════════════
+        // MOBILE / RESPONSIVE
+        // ═══════════════════════════════════════════════════════════════
+
+        window.addEventListener('resize', () => {
+            // Resize canvas on orientation change
+            const canvas = document.getElementById('waveform-canvas');
+            if (canvas && canvas.offsetParent !== null) {
+                // Re-draw waveform if we have data
+                // In AB test, we usually draw based on current sample or activeKey
+                // But generally we just need to re-run drawPlayhead or drawWaveform
+                // If we have an active buffer, we can redraw it.
+                // However, AB test logic for drawing is inside playTrialSample -> drawWaveform
+
+                // Simplified: Just try to redraw current buffer if available
+                if (state.activeKey && state.audioPool[state.activeKey]) {
+                    drawWaveform(state.audioPool[state.activeKey].buffer);
+                }
+            }
+        });
     </script>
 
 </body>

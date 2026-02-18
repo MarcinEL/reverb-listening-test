@@ -478,16 +478,68 @@
     }
 
     @media (max-width: 600px) {
+      .container {
+        padding: 1rem;
+      }
+
+      h1 {
+        font-size: 1.5rem;
+      }
+
       .form-row {
         grid-template-columns: 1fr;
       }
 
+      /* Stack the sample row for better touch targets */
       .sample-row {
-        grid-template-columns: 80px 1fr 50px;
+        display: flex;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 0.8rem;
+        padding: 1rem 0.8rem;
+      }
+
+      .sample-row>div:first-child {
+        /* Label */
+        text-align: left;
+        font-size: 1rem;
+        margin-bottom: 0.2rem;
+      }
+
+      .slider-container {
+        width: 100%;
+      }
+
+      .score-display {
+        font-size: 1.2rem;
+        align-self: flex-end;
       }
 
       .mushra-scale {
-        padding-left: 80px;
+        padding-left: 0;
+        margin-top: 0.2rem;
+        font-size: 0.65rem;
+      }
+
+      /* Larger touch targets */
+      .play-btn {
+        width: 48px;
+        height: 48px;
+      }
+
+      input[type="range"] {
+        height: 12px;
+        touch-action: none;
+      }
+
+      input[type="range"]::-webkit-slider-thumb {
+        width: 28px;
+        height: 28px;
+      }
+
+      input[type="range"]::-moz-range-thumb {
+        width: 28px;
+        height: 28px;
       }
     }
   </style>
@@ -1624,6 +1676,22 @@
       }
 
       init();
+
+      // ═══════════════════════════════════════════════════════════════
+      // MOBILE / RESPONSIVE
+      // ═══════════════════════════════════════════════════════════════
+
+      window.addEventListener('resize', () => {
+        // Resize canvas on orientation change
+        const canvas = document.getElementById('waveform-canvas');
+        if (canvas && canvas.offsetParent !== null) {
+          // Re-draw waveform if we have data
+          const key = state.activeKey;
+          if (key && state.audioPool[key]) {
+            drawWaveform(state.audioPool[key].buffer);
+          }
+        }
+      });
     </script>
 
 </body>
