@@ -521,7 +521,7 @@
         <!-- ═══════ SCREEN: CONFIG ═══════ -->
         <div id="screen-config" class="screen active">
             <h1>Konfiguracja testu AB / ABX / Preferencja</h1>
-            <p class="subtitle">Przygotuj test porównawczy do oceny rewerbu algorytmicznego</p>
+            <p class="subtitle">Przygotuj test porównawczy do oceny pogłosu algorytmicznego</p>
 
             <div class="card">
                 <h2>Tryb testu</h2>
@@ -558,7 +558,7 @@
                 <div class="form-row">
                     <div>
                         <label>Tytuł testu</label>
-                        <input type="text" id="cfg-title" value="Porównanie rewerbu algorytmicznego">
+                        <input type="text" id="cfg-title" value="Porównanie pogłosu algorytmicznego">
                     </div>
                     <div>
                         <label>Randomizuj kolejność trials</label>
@@ -590,7 +590,7 @@
         <!-- ═══════ SCREEN: WELCOME ═══════ -->
         <div id="screen-welcome" class="screen">
             <h1 id="test-title">Test Porównawczy Reverbu</h1>
-            <p class="subtitle" id="test-subtitle">Badanie jakości rewerbu algorytmicznego</p>
+            <p class="subtitle" id="test-subtitle">Badanie jakości pogłosu algorytmicznego</p>
 
             <div class="instructions" id="instructions-text"></div>
 
@@ -771,7 +771,7 @@
         // ═══════════════════════════════════════════════════════════════
 
         let config = {
-            title: "Porównanie rewerbu algorytmicznego",
+            title: "Porównanie pogłosu algorytmicznego",
             mode: "ab",       // "ab" | "abx" | "preference"
             randomize: true,
             webhook: "",
@@ -1012,7 +1012,7 @@
 
             const modeLabels = { ab: 'AB', abx: 'ABX', preference: 'Preferencja' };
             document.getElementById('test-subtitle').textContent =
-                `Test ${modeLabels[config.mode] || 'AB'} — porównanie jakości rewerbu`;
+                `Test ${modeLabels[config.mode] || 'AB'} — porównanie jakości pogłosu`;
 
             const instructionsMap = {
                 ab: `<strong>Instrukcja:</strong> Wysłuchasz ${config.trials.length} par próbek audio.

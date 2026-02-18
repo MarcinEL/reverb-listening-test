@@ -500,7 +500,7 @@
     <!-- ═══════ SCREEN: CONFIG (for admin) ═══════ -->
     <div id="screen-config" class="screen active">
       <h1>Konfiguracja testu słuchowego</h1>
-      <p class="subtitle">Przygotuj test MUSHRA do oceny jakości rewerbu algorytmicznego</p>
+      <p class="subtitle">Przygotuj test MUSHRA do oceny jakości pogłosu algorytmicznego</p>
 
       <div class="card">
         <h2>Konfiguracja próbek audio</h2>
@@ -521,7 +521,7 @@
         <div class="form-row">
           <div>
             <label>Tytuł testu</label>
-            <input type="text" id="cfg-title" value="Ocena jakości rewerbu algorytmicznego">
+            <input type="text" id="cfg-title" value="Ocena jakości pogłosu algorytmicznego">
           </div>
           <div>
             <label>Google Apps Script URL (opcjonalnie)</label>
@@ -567,7 +567,7 @@
     <!-- ═══════ SCREEN: WELCOME ═══════ -->
     <div id="screen-welcome" class="screen">
       <h1 id="test-title">Test Słuchowy Reverbu</h1>
-      <p class="subtitle">Badanie jakości rewerbu algorytmicznego — metoda MUSHRA</p>
+      <p class="subtitle">Badanie jakości pogłosu algorytmicznego — metoda MUSHRA</p>
 
       <div class="instructions">
         <strong>Instrukcja:</strong> Wysłuchasz kilku scenariuszy testowych. W każdym scenariuszu
@@ -776,7 +776,7 @@
       // ═══════════════════════════════════════════════════════════════
 
       let config = {
-        title: "Ocena jakości rewerbu algorytmicznego",
+        title: "Ocena jakości pogłosu algorytmicznego",
         randomize: true,
         webhook: "",
         scenarios: []
@@ -815,7 +815,7 @@
       const defaultScenarios = [
         {
           name: "Wokal żeński — Room (krótki pogłos)",
-          description: "Porównaj jakość rewerbu typu Hall na wokalu żeńskim. Oceń naturalność, gładkość ogona i brak artefaktów.",
+          description: "Porównaj jakość pogłosu typu Hall na wokalu żeńskim. Oceń naturalność, gładkość ogona i brak artefaktów.",
           reference: "samples/wokal_ref_1s_mix.wav",
           dry: "samples/wokal_dry.wav",
           samples: [
