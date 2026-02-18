@@ -1373,14 +1373,17 @@
             const rect = canvas.getBoundingClientRect();
             const x = e.clientX - rect.left;
             const ratio = x / rect.width;
-            // Update state but don't draw playhead in a revealing way? 
-            // Actually drawPlayhead checks offscreenCanvas, which now has the text.
-            // So it will just redraw the text. 
-            // But we need to update state.currentSample
+
             const newPos = Math.floor(ratio * state.totalSamples);
             state.currentSample = newPos;
             state.lastCallbackSample = newPos;
             state.lastCallbackTime = state.audioCtx ? state.audioCtx.currentTime : 0;
+
+            // Fix: Actually seek the audio engine
+            if (state.workletNode) {
+              state.workletNode.port.postMessage({ type: 'seek', position: newPos });
+            }
+
             drawPlayhead();
           };
           return;
