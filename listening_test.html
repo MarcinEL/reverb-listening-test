@@ -1173,7 +1173,7 @@
       <div class="sample-label">Próbka ${letter}</div>
       <div class="slider-container">
         <button class="play-btn" onclick="playSample(${idx}, ${origIdx}, ${displayIdx})" id="play-${displayIdx}">▶</button>
-        <input type="range" min="0" max="100" value="${score}"
+        <input type="range" class="mushra-slider" id="slider-${displayIdx}" min="0" max="100" value="${score}" disabled
                oninput="updateScore(${idx}, ${origIdx}, this.value, ${displayIdx})">
       </div>
       <div class="score-display" id="score-${displayIdx}">${score}</div>
@@ -1370,6 +1370,7 @@
         state.playingId = null;
         document.querySelectorAll('.play-btn').forEach(b => { b.classList.remove('active'); b.textContent = '▶'; });
         document.querySelectorAll('.sample-row').forEach(r => r.classList.remove('playing'));
+        document.querySelectorAll('.mushra-slider').forEach(s => s.disabled = true);
         const loopInfo = document.getElementById('loop-info');
         if (loopInfo) loopInfo.style.display = 'none';
       }
@@ -1416,9 +1417,20 @@
         // Update UI
         document.querySelectorAll('.play-btn').forEach(b => { b.classList.remove('active'); b.textContent = '▶'; });
         document.querySelectorAll('.sample-row').forEach(r => r.classList.remove('playing'));
+        document.querySelectorAll('.mushra-slider').forEach(s => s.disabled = true);
         const btn = document.getElementById(elementId);
         if (btn) { btn.classList.add('active'); btn.textContent = '⏸'; }
-        if (rowId) { const row = document.getElementById(rowId); if (row) row.classList.add('playing'); }
+        if (rowId) {
+          const row = document.getElementById(rowId);
+          if (row) row.classList.add('playing');
+
+          // Enable specific slider if playing a MUSHRA sample
+          if (rowId.startsWith('sample-row-')) {
+            const displayIdx = rowId.replace('sample-row-', '');
+            const slider = document.getElementById(`slider-${displayIdx}`);
+            if (slider) slider.disabled = false;
+          }
+        }
         document.getElementById('loop-info').style.display = 'flex';
 
         // Show waveform
