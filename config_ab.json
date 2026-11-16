@@ -1,0 +1,86 @@
+{
+  "title": "Porównanie jakości pogłosu FDN",
+  "mode": "ab",
+  "randomize": true,
+  "webhook": "https://script.google.com/macros/s/AKfycbxr1_dclTANVgWiPm5bPPT4py7EfY-Spz45pijJaBj2cHo1JgWwU7520jUlnn_pl4WN/exec",
+  "trials": [
+    {
+      "name": "Wokal — FDN vs Valhalla",
+      "description": "Wokal żeński z pogłosem typu Room",
+      "sample_a": {
+        "id": "fdn_wojda",
+        "url": "samples/wokal_poglosie_1s_mix.wav"
+      },
+      "sample_b": {
+        "id": "valhalla",
+        "url": "samples/wokal_vintageverb_1s_mix.wav"
+      },
+      "dry": "samples/wokal_dry.wav"
+    },
+    {
+      "name": "Wokal — FDN vs DragonFly",
+      "description": "Wokal żeński z pogłosem typu Room",
+      "sample_a": {
+        "id": "fdn_wojda",
+        "url": "samples/wokal_poglosie_1s_mix.wav"
+      },
+      "sample_b": {
+        "id": "dragonfly",
+        "url": "samples/wokal_dragonfly_1s_mix.wav"
+      },
+      "dry": "samples/wokal_dry.wav"
+    },
+    {
+      "name": "Wokal — FDN vs OrilRiver",
+      "description": "Wokal żeński z pogłosem typu Room",
+      "sample_a": {
+        "id": "fdn_wojda",
+        "url": "samples/wokal_poglosie_1s_mix.wav"
+      },
+      "sample_b": {
+        "id": "orilriver",
+        "url": "samples/wokal_orilriver_1s_mix.wav"
+      },
+      "dry": "samples/wokal_dry.wav"
+    },
+    {
+      "name": "Perkusja — FDN vs Valhalla",
+      "description": "Perkusja z pogłosem typu Room",
+      "sample_a": {
+        "id": "fdn_wojda",
+        "url": "samples/perkusja_poglosie_1s_mix.wav"
+      },
+      "sample_b": {
+        "id": "valhalla",
+        "url": "samples/perkusja_vintageverb_1s_mix.wav"
+      },
+      "dry": "samples/perkusja_dry.wav"
+    },
+    {
+      "name": "Perkusja — FDN vs DragonFly",
+      "description": "Perkusja z pogłosem typu Room",
+      "sample_a": {
+        "id": "fdn_wojda",
+        "url": "samples/perkusja_poglosie_1s_mix.wav"
+      },
+      "sample_b": {
+        "id": "dragonfly",
+        "url": "samples/perkusja_dragonfly_1s_mix.wav"
+      },
+      "dry": "samples/perkusja_dry.wav"
+    },
+    {
+      "name": "Perkusja — FDN vs OrilRiver",
+      "description": "Perkusja z pogłosem typu Room",
+      "sample_a": {
+        "id": "fdn_wojda",
+        "url": "samples/perkusja_poglosie_1s_mix.wav"
+      },
+      "sample_b": {
+        "id": "orilriver",
+        "url": "samples/perkusja_orilriver_1s_mix.wav"
+      },
+      "dry": "samples/perkusja_dry.wav"
+    }
+  ]
+}

@@ -211,6 +211,11 @@
             grid-template-columns: 1fr 1fr 1fr;
         }
 
+        .player-group.four-col {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+        }
+
         .player-card {
             flex: 1;
             background: var(--surface2);
@@ -280,6 +285,22 @@
             color: white;
         }
 
+        .player-card-dry .player-label {
+            color: var(--text-dim);
+        }
+
+        .player-card-dry .play-btn {
+            border-color: var(--text-dim);
+            color: var(--text-dim);
+        }
+
+        .player-card-dry .play-btn:hover,
+        .player-card-dry .play-btn.active {
+            border-color: var(--accent);
+            background: var(--accent);
+            color: white;
+        }
+
         /* Choice buttons */
         .choice-group {
             display: flex;
@@ -304,7 +325,7 @@
 
         .choice-btn:hover {
             border-color: var(--accent);
-            background: var(--accent) + '10';
+            background: var(--accent-glow);
         }
 
         .choice-btn.selected {
@@ -500,7 +521,8 @@
                 grid-template-columns: 1fr;
             }
 
-            .player-group.three-col {
+            .player-group.three-col,
+            .player-group.four-col {
                 grid-template-columns: 1fr;
             }
 
@@ -852,6 +874,7 @@
             // Playhead interpolation state
             lastCallbackTime: 0,
             lastCallbackSample: 0,
+            loadGeneration: 0,
         };
 
         let workletReady = null; // Promise — resolved when AudioWorklet is initialized
@@ -863,45 +886,45 @@
         const defaultTrials = [
             {
                 name: "Wokal — FDN vs Valhalla",
-                description: "Wokal żeński z reverbem typu Hall",
+                description: "Wokal żeński z pogłosem typu Room",
                 sample_a: { id: "fdn_wojda", url: "samples/wokal_poglosie_1s_mix.wav" },
                 sample_b: { id: "valhalla", url: "samples/wokal_vintageverb_1s_mix.wav" },
                 dry: "samples/wokal_dry.wav"
             },
             {
                 name: "Wokal — FDN vs DragonFly",
-                description: "Wokal żeński z reverbem typu Hall",
+                description: "Wokal żeński z pogłosem typu Room",
                 sample_a: { id: "fdn_wojda", url: "samples/wokal_poglosie_1s_mix.wav" },
                 sample_b: { id: "dragonfly", url: "samples/wokal_dragonfly_1s_mix.wav" },
                 dry: "samples/wokal_dry.wav"
             },
             {
-                name: "Wokal — FDN vs Orilriver",
-                description: "Wokal żeński z reverbem typu Hall",
+                name: "Wokal — FDN vs OrilRiver",
+                description: "Wokal żeński z pogłosem typu Room",
                 sample_a: { id: "fdn_wojda", url: "samples/wokal_poglosie_1s_mix.wav" },
                 sample_b: { id: "orilriver", url: "samples/wokal_orilriver_1s_mix.wav" },
                 dry: "samples/wokal_dry.wav"
             },
             {
                 name: "Perkusja — FDN vs Valhalla",
-                description: "Perkusja z reverbem typu Room",
+                description: "Perkusja z pogłosem typu Room",
                 sample_a: { id: "fdn_wojda", url: "samples/perkusja_poglosie_1s_mix.wav" },
                 sample_b: { id: "valhalla", url: "samples/perkusja_vintageverb_1s_mix.wav" },
                 dry: "samples/perkusja_dry.wav"
             },
             {
                 name: "Perkusja — FDN vs DragonFly",
-                description: "Perkusja z reverbem typu Room",
+                description: "Perkusja z pogłosem typu Room",
                 sample_a: { id: "fdn_wojda", url: "samples/perkusja_poglosie_1s_mix.wav" },
                 sample_b: { id: "dragonfly", url: "samples/perkusja_dragonfly_1s_mix.wav" },
                 dry: "samples/perkusja_dry.wav"
             },
             {
-                name: "Perkusja — FDN vs Orilriver",
-                description: "Perkusja z reverbem typu Room",
+                name: "Perkusja — FDN vs OrilRiver",
+                description: "Perkusja z pogłosem typu Room",
                 sample_a: { id: "fdn_wojda", url: "samples/perkusja_poglosie_1s_mix.wav" },
                 sample_b: { id: "orilriver", url: "samples/perkusja_orilriver_1s_mix.wav" },
-                dry: "samples/drums_dry.wav"
+                dry: "samples/perkusja_dry.wav"
             }
         ];
 
@@ -1137,7 +1160,11 @@
 
             // Players
             const playerGroup = document.getElementById('player-group');
-            playerGroup.className = config.mode === 'abx' ? 'player-group three-col' : 'player-group';
+            if (config.mode === 'abx') {
+                playerGroup.className = trial.dry ? 'player-group four-col' : 'player-group three-col';
+            } else {
+                playerGroup.className = 'player-group';
+            }
             playerGroup.innerHTML = '';
 
             // Player A
@@ -1169,12 +1196,11 @@
             // Add Dry Button (if available)
             if (trial.dry) {
                 const dryDiv = document.createElement('div');
-                dryDiv.className = 'player-card';
+                dryDiv.className = 'player-card player-card-dry';
                 dryDiv.id = 'player-dry';
-                dryDiv.style.marginBottom = '1rem';
                 dryDiv.innerHTML = `
-                  <div class="player-label" style="color: var(--text-dim);">Dry (Suchy)</div>
-                  <button class="play-btn" id="play-dry" onclick="playTrialSample('dry')" style="border-color: var(--text-dim); color: var(--text-dim);">▶</button>
+                  <div class="player-label">Dry (Suchy)</div>
+                  <button class="play-btn" id="play-dry" onclick="playTrialSample('dry')">▶</button>
                 `;
                 // Insert before player A
                 playerGroup.insertBefore(dryDiv, playerGroup.firstChild);
@@ -1330,6 +1356,8 @@
             state.playingId = null;
             state.currentSample = 0;
             state.totalSamples = 0;
+            state.lastCallbackTime = 0;
+            state.lastCallbackSample = 0;
             state.waveformImageData = null;
 
             const container = document.getElementById('waveform-container');
@@ -1347,6 +1375,9 @@
             const progressEl = document.getElementById('loading-progress');
             if (overlay) overlay.style.display = 'flex';
             if (progressEl) progressEl.textContent = '0%';
+
+            state.loadGeneration = (state.loadGeneration || 0) + 1;
+            const currentGen = state.loadGeneration;
 
             ensureAudioCtx();
             const entries = [
@@ -1366,7 +1397,15 @@
                 xhr.open('GET', url, true);
                 xhr.responseType = 'arraybuffer';
                 xhr.onload = function () {
+                    if (currentGen !== state.loadGeneration) return;
+                    if (xhr.status >= 400) {
+                        console.error('HTTP error loading audio:', url, xhr.status);
+                        loaded++;
+                        if (loaded === total) onAllBuffersLoaded(currentGen);
+                        return;
+                    }
                     state.audioCtx.decodeAudioData(xhr.response, function (audioBuffer) {
+                        if (currentGen !== state.loadGeneration) return;
                         state.audioPool[key] = { buffer: audioBuffer, url: url };
                         loaded++;
 
@@ -1374,36 +1413,35 @@
                         if (progressEl) progressEl.textContent = pct + '%';
 
                         if (loaded === total) {
-                            onAllBuffersLoaded();
+                            onAllBuffersLoaded(currentGen);
                         }
                     }, function (err) {
+                        if (currentGen !== state.loadGeneration) return;
                         console.error('Failed to decode:', url, err);
-                        loaded++; // proceed anyway
-                        if (loaded === total) onAllBuffersLoaded();
+                        loaded++;
+                        if (loaded === total) onAllBuffersLoaded(currentGen);
                     });
                 };
                 xhr.onerror = function () {
+                    if (currentGen !== state.loadGeneration) return;
                     console.error('Failed to load:', url);
                     loaded++;
-                    if (loaded === total) onAllBuffersLoaded();
+                    if (loaded === total) onAllBuffersLoaded(currentGen);
                 };
                 xhr.send();
             });
         }
 
-        async function onAllBuffersLoaded() {
-            // Hide loading overlay
-            const overlay = document.getElementById('loading-overlay');
-            if (overlay) overlay.style.display = 'none';
-
+        async function onAllBuffersLoaded(currentGen) {
             const refBuf = state.audioPool['a']?.buffer || Object.values(state.audioPool)[0]?.buffer;
             if (refBuf) {
                 state.totalSamples = refBuf.length;
                 state.sampleRate = refBuf.sampleRate;
             }
 
-            // Wait for worklet to be ready, then send buffers
+            // Wait for worklet to be ready, then send buffers before hiding overlay
             await workletReady;
+            if (currentGen !== undefined && currentGen !== state.loadGeneration) return;
 
             const fadeLength = Math.floor(state.sampleRate * 0.005); // 5ms crossfade
             state.workletNode.port.postMessage({ type: 'setFadeLength', samples: fadeLength });
@@ -1411,6 +1449,10 @@
             for (const [key, entry] of Object.entries(state.audioPool)) {
                 sendBufferToWorklet(key, entry.buffer);
             }
+
+            // Hide loading overlay once worklet has all buffers
+            const overlay = document.getElementById('loading-overlay');
+            if (overlay) overlay.style.display = 'none';
         }
 
         function stopAudio() {
@@ -1421,6 +1463,9 @@
             state.activeKey = null;
             state.isPlaying = false;
             state.playingId = null;
+            state.currentSample = 0;
+            state.lastCallbackSample = 0;
+            state.lastCallbackTime = state.audioCtx ? state.audioCtx.currentTime : 0;
             document.querySelectorAll('.play-btn').forEach(b => { b.classList.remove('active'); b.textContent = '▶'; });
             document.querySelectorAll('.player-card').forEach(c => c.classList.remove('playing'));
             const loopInfo = document.getElementById('loop-info');
@@ -1452,6 +1497,8 @@
                     return;
                 } else {
                     state.isPlaying = true;
+                    state.lastCallbackTime = state.audioCtx.currentTime;
+                    state.lastCallbackSample = state.currentSample;
                     state.workletNode.port.postMessage({ type: 'resume' });
                     const btn = document.getElementById(elementId);
                     if (btn) { btn.classList.add('active'); btn.textContent = '⏸'; }
@@ -1467,6 +1514,8 @@
             if (state.isPlaying && state.activeKey) {
                 state.workletNode.port.postMessage({ type: 'switch', key: poolKey });
             } else {
+                state.lastCallbackTime = state.audioCtx.currentTime;
+                state.lastCallbackSample = state.currentSample;
                 state.workletNode.port.postMessage({ type: 'play', key: poolKey });
             }
 
@@ -1516,14 +1565,13 @@
             ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
             ctx.clearRect(0, 0, w, h);
 
-            // Hide waveform for Reference/Dry (prevent visual matching)
-            // In AB, 'dry' is the only potential "reference" usually available, but we check 'ref' too.
-            if (state.activeKey === 'ref' || state.activeKey === 'dry') {
+            // Hide waveform for Reference, Dry, and Sample X in ABX mode (prevent visual matching)
+            if (state.activeKey === 'ref' || state.activeKey === 'dry' || state.playingId === 'play-x') {
                 ctx.fillStyle = VISUAL_THEME.colors.textDim;
                 ctx.font = '14px Inter, sans-serif';
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'middle';
-                const label = state.activeKey === 'ref' ? 'Referencja' : 'Dry';
+                const label = state.playingId === 'play-x' ? 'Próbka X' : (state.activeKey === 'ref' ? 'Referencja' : 'Dry');
                 ctx.fillText(`Podgląd niedostępny (${label})`, w / 2, h / 2);
 
                 // Store offscreen copy
@@ -1544,8 +1592,8 @@
                 canvas.onclick = function (e) {
                     const rect = canvas.getBoundingClientRect();
                     const x = e.clientX - rect.left;
-                    const ratio = x / rect.width;
-                    const newPos = Math.floor(ratio * state.totalSamples);
+                    const ratio = Math.max(0, Math.min(1, x / rect.width));
+                    const newPos = Math.min(Math.max(0, state.totalSamples - 1), Math.floor(ratio * state.totalSamples));
                     state.currentSample = newPos;
                     state.lastCallbackSample = newPos;
                     state.lastCallbackTime = state.audioCtx ? state.audioCtx.currentTime : 0;
@@ -1554,6 +1602,7 @@
                     }
                     drawPlayhead();
                 };
+                drawPlayhead();
                 return;
             }
 
@@ -1607,8 +1656,8 @@
             canvas.onclick = function (e) {
                 const rect = canvas.getBoundingClientRect();
                 const x = e.clientX - rect.left;
-                const ratio = x / rect.width;
-                const newPos = Math.floor(ratio * state.totalSamples);
+                const ratio = Math.max(0, Math.min(1, x / rect.width));
+                const newPos = Math.min(Math.max(0, state.totalSamples - 1), Math.floor(ratio * state.totalSamples));
                 state.currentSample = newPos;
                 state.lastCallbackSample = newPos;
                 state.lastCallbackTime = state.audioCtx ? state.audioCtx.currentTime : 0;
@@ -1617,11 +1666,12 @@
                 }
                 drawPlayhead();
             };
+            drawPlayhead();
         }
 
         function getInterpolatedSample() {
             if (!state.isPlaying || !state.audioCtx || !state.totalSamples) return state.currentSample;
-            const elapsed = state.audioCtx.currentTime - state.lastCallbackTime;
+            const elapsed = Math.max(0, state.audioCtx.currentTime - state.lastCallbackTime);
             const extraSamples = Math.floor(elapsed * state.sampleRate);
             return (state.lastCallbackSample + extraSamples) % state.totalSamples;
         }
@@ -1660,6 +1710,8 @@
             ctx.moveTo(x, 0);
             ctx.lineTo(x, h);
             ctx.stroke();
+            ctx.shadowBlur = 0;
+            ctx.shadowColor = 'transparent';
 
             // Time display
             const currentTime = interpolatedSample / state.sampleRate;
@@ -1783,23 +1835,27 @@
 
         async function init() {
             const params = new URLSearchParams(window.location.search);
+            const configUrl = params.get('config') || 'config_ab.json';
 
-            if (params.has('participant')) {
-                try {
-                    const configUrl = params.get('config') || 'config_ab.json';
-                    const resp = await fetch(configUrl);
-                    if (resp.ok) {
-                        config = await resp.json();
-                        showScreen('welcome');
-                        setupWelcomeScreen();
-                        return;
-                    }
-                } catch (e) {
-                    console.warn('Could not load config_ab.json:', e);
+            try {
+                const resp = await fetch(configUrl);
+                if (resp.ok) {
+                    config = await resp.json();
+                    document.getElementById('cfg-title').value = config.title || '';
+                    document.getElementById('cfg-mode').value = config.mode || 'ab';
+                    document.getElementById('cfg-webhook').value = config.webhook || '';
+                    document.getElementById('cfg-randomize').value = config.randomize ? 'true' : 'false';
                 }
+            } catch (e) {
+                console.warn('Could not load config_ab.json:', e);
             }
 
-            // Admin mode
+            if (params.has('participant')) {
+                showScreen('welcome');
+                setupWelcomeScreen();
+                return;
+            }
+
             // Admin mode
             updateModeDescription();
             renderTrialsEditor();

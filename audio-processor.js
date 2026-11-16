@@ -36,21 +36,33 @@ class PlaybackProcessor extends AudioWorkletProcessor {
         this.playing = true;
         this.fadeState = 2;
         this.fadePos = 0;
+        this.reportCounter = 0;
+        this.port.postMessage({ type: 'position', position: this.position });
         break;
 
       case 'switch':
         // Crossfade from current buffer to new one (keeps position)
-        this.fadeInKey = msg.key;
-        this.fadeState = 1;
-        this.fadePos = 0;
+        if (!this.activeKey || !this.playing) {
+          this.activeKey = msg.key;
+          this.playing = true;
+          this.fadeState = 2;
+          this.fadePos = 0;
+        } else {
+          this.fadeInKey = msg.key;
+          this.fadeState = 1;
+          this.fadePos = 0;
+        }
         break;
 
       case 'pause':
         this.playing = false;
+        this.port.postMessage({ type: 'position', position: this.position });
         break;
 
       case 'resume':
         this.playing = true;
+        this.reportCounter = 0;
+        this.port.postMessage({ type: 'position', position: this.position });
         break;
 
       case 'stop':
@@ -94,16 +106,18 @@ class PlaybackProcessor extends AudioWorkletProcessor {
     }
 
     let pos = this.position;
+    const fadeDenom = Math.max(1, this.fadeMax - 1);
 
     for (let i = 0; i < blockSize; i++) {
       // Read active buffer (re-read each sample so transitions are seamless)
       const buf = this.buffers[this.activeKey];
-      if (!buf) break;
+      if (!buf || !buf[0] || buf[0].length === 0) break;
       const totalLen = buf[0].length;
+      if (pos >= totalLen || pos < 0) pos = 0;
 
       if (this.fadeState === 1) {
         // ── Fade out current buffer ──
-        const ramp = 0.5 * (1 + Math.cos(Math.PI * this.fadePos / (this.fadeMax - 1)));
+        const ramp = 0.5 * (1 + Math.cos(Math.PI * this.fadePos / fadeDenom));
         for (let ch = 0; ch < numChannels; ch++) {
           output[ch][i] = buf[Math.min(ch, buf.length - 1)][pos] * ramp;
         }
@@ -128,7 +142,7 @@ class PlaybackProcessor extends AudioWorkletProcessor {
         }
       } else if (this.fadeState === 2) {
         // ── Fade in new buffer (activeKey already switched) ──
-        const ramp = 0.5 * (1 - Math.cos(Math.PI * this.fadePos / (this.fadeMax - 1)));
+        const ramp = 0.5 * (1 - Math.cos(Math.PI * this.fadePos / fadeDenom));
         for (let ch = 0; ch < numChannels; ch++) {
           output[ch][i] = buf[Math.min(ch, buf.length - 1)][pos] * ramp;
         }

@@ -50,6 +50,7 @@
       margin-bottom: 0.5rem;
       background: linear-gradient(135deg, #60a5fa, #a78bfa);
       -webkit-background-clip: text;
+      background-clip: text;
       -webkit-text-fill-color: transparent;
     }
 
@@ -354,7 +355,6 @@
       white-space: pre;
       line-height: 1.8;
       max-width: 100%;
-      font-size: 0.85rem;
     }
 
     /* Screen management */
@@ -404,6 +404,7 @@
       flex: 1;
       accent-color: var(--accent);
       height: 4px;
+      touch-action: none;
     }
 
     .volume-value {
@@ -780,7 +781,6 @@
           <label>🔊 Głośność</label>
           <input type="range" min="0" max="100" value="80" id="volume-slider" oninput="setVolume(this.value)">
           <span class="volume-value" id="volume-value">80%</span>
-          <div id="submit-status" style="margin: 1rem 0;"></div>
         </div>
 
         <div class="nav-buttons">
@@ -907,6 +907,7 @@
         // Playhead interpolation state
         lastCallbackTime: 0,
         lastCallbackSample: 0,
+        loadGeneration: 0,
       };
 
       let workletReady = null; // Promise — resolved when AudioWorklet is initialized
@@ -915,36 +916,58 @@
       // ADMIN: SCENARIO EDITOR
       // ═══════════════════════════════════════════════════════════════
 
-      // Initialize with a demo scenario
+      // Initialize with default scenarios matching config.json
       const defaultScenarios = [
         {
           name: "Wokal żeński — Room (krótki pogłos)",
-          description: "Porównaj jakość pogłosu typu Hall na wokalu żeńskim. Oceń naturalność, gładkość ogona i brak artefaktów.",
+          description: "Porównaj i oceń jakość pogłosu typu Room na wokalu żeńskim. Oceń naturalność brzmienia pogłosu.",
           reference: "samples/wokal_ref_1s_mix.wav",
           dry: "samples/wokal_dry.wav",
           samples: [
             { id: "fdn_wojda", label: "Sample A", url: "samples/wokal_poglosie_1s_mix.wav" },
             { id: "hidden_ref", label: "Sample B", url: "samples/wokal_ref_1s_mix.wav" },
             { id: "dragonfly", label: "Sample C", url: "samples/wokal_dragonfly_1s_mix.wav" },
-            { id: "openverb", label: "Sample D", url: "samples/wokal_orilriver_1s_mix.wav" },
-            { id: "orilriver", label: "Sample E", url: "samples/wokal_orilriver_1s_mix.wav" },
-            { id: "valhalla", label: "Sample F", url: "samples/wokal_vintageverb_1s_mix.wav" },
-            { id: "anchor", label: "Sample G", url: "samples/wokal_ref_1s_mix_anchor.wav" }
+            { id: "orilriver", label: "Sample D", url: "samples/wokal_orilriver_1s_mix.wav" },
+            { id: "anchor", label: "Sample E", url: "samples/wokal_ref_1s_mix_anchor.wav" }
           ]
         },
         {
           name: "Perkusja — Room (krótki pogłos)",
-          description: "Porównaj reverb typu Room na ścieżce perkusyjnej. Zwróć uwagę na gęstość echa i metaliczność.",
+          description: "Porównaj i oceń jakość pogłosu typu Room na ścieżce perkusyjnej. Zwróć uwagę na gęstość echa i metaliczność brzmienia.",
           reference: "samples/perkusja_ref_1s_mix.wav",
           dry: "samples/perkusja_dry.wav",
           samples: [
             { id: "fdn_wojda", label: "Sample A", url: "samples/perkusja_poglosie_1s_mix.wav" },
             { id: "hidden_ref", label: "Sample B", url: "samples/perkusja_ref_1s_mix.wav" },
             { id: "dragonfly", label: "Sample C", url: "samples/perkusja_dragonfly_1s_mix.wav" },
-            { id: "openverb", label: "Sample D", url: "samples/perkusja_orilriver_1s_mix.wav" },
-            { id: "orilriver", label: "Sample E", url: "samples/perkusja_orilriver_1s_mix.wav" },
-            { id: "valhalla", label: "Sample F", url: "samples/perkusja_vintageverb_1s_mix.wav" },
-            { id: "anchor", label: "Sample G", url: "samples/perkusja_ref_1s_mix_anchor.wav" }
+            { id: "orilriver", label: "Sample D", url: "samples/perkusja_orilriver_1s_mix.wav" },
+            { id: "anchor", label: "Sample E", url: "samples/perkusja_ref_1s_mix_anchor.wav" }
+          ]
+        },
+        {
+          name: "Fortepian — Hall (długi pogłos)",
+          description: "Porównaj i oceń jakość pogłosu typu Hall na ścieżce fortepianu.",
+          reference: "samples/fortepian_ref_5s_mix.wav",
+          dry: "samples/fortepian_dry.wav",
+          samples: [
+            { id: "fdn_wojda", label: "Sample A", url: "samples/fortepian_poglosie_5s_mix.wav" },
+            { id: "hidden_ref", label: "Sample B", url: "samples/fortepian_ref_5s_mix.wav" },
+            { id: "dragonfly", label: "Sample C", url: "samples/fortepian_dragonfly_5s_mix.wav" },
+            { id: "orilriver", label: "Sample D", url: "samples/fortepian_orilriver_5s_mix.wav" },
+            { id: "anchor", label: "Sample E", url: "samples/fortepian_ref_5s_mix_anchor.wav" }
+          ]
+        },
+        {
+          name: "Miks — Hall (długi pogłos)",
+          description: "Porównaj i oceń jakość pogłosu typu Hall na ścieżce miksu całego utworu.",
+          reference: "samples/miks_ref_5s_mix.wav",
+          dry: "samples/miks_dry.wav",
+          samples: [
+            { id: "fdn_wojda", label: "Sample A", url: "samples/miks_poglosie_5s_mix.wav" },
+            { id: "hidden_ref", label: "Sample B", url: "samples/miks_ref_5s_mix.wav" },
+            { id: "dragonfly", label: "Sample C", url: "samples/miks_dragonfly_5s_mix.wav" },
+            { id: "orilriver", label: "Sample D", url: "samples/miks_orilriver_5s_mix.wav" },
+            { id: "anchor", label: "Sample E", url: "samples/miks_ref_5s_mix_anchor.wav" }
           ]
         }
       ];
@@ -1276,6 +1299,8 @@
         state.playingId = null;
         state.currentSample = 0;
         state.totalSamples = 0;
+        state.lastCallbackTime = 0;
+        state.lastCallbackSample = 0;
         state.waveformImageData = null;
 
         const container = document.getElementById('waveform-container');
@@ -1293,6 +1318,9 @@
         const progressEl = document.getElementById('loading-progress');
         if (overlay) overlay.style.display = 'flex';
         if (progressEl) progressEl.textContent = '0%';
+
+        state.loadGeneration = (state.loadGeneration || 0) + 1;
+        const currentGen = state.loadGeneration;
 
         ensureAudioCtx();
         const entries = [
@@ -1312,7 +1340,15 @@
           xhr.open('GET', url, true);
           xhr.responseType = 'arraybuffer';
           xhr.onload = function () {
+            if (currentGen !== state.loadGeneration) return;
+            if (xhr.status >= 400) {
+              console.error('HTTP error loading audio:', url, xhr.status);
+              loaded++;
+              if (loaded === total) onAllBuffersLoaded(currentGen);
+              return;
+            }
             state.audioCtx.decodeAudioData(xhr.response, function (audioBuffer) {
+              if (currentGen !== state.loadGeneration) return;
               state.audioPool[key] = { buffer: audioBuffer, url: url };
               loaded++;
 
@@ -1320,28 +1356,26 @@
               if (progressEl) progressEl.textContent = pct + '%';
 
               if (loaded === total) {
-                onAllBuffersLoaded();
+                onAllBuffersLoaded(currentGen);
               }
             }, function (err) {
+              if (currentGen !== state.loadGeneration) return;
               console.error('Failed to decode:', url, err);
-              loaded++; // proceed anyway?
-              if (loaded === total) onAllBuffersLoaded();
+              loaded++;
+              if (loaded === total) onAllBuffersLoaded(currentGen);
             });
           };
           xhr.onerror = function () {
+            if (currentGen !== state.loadGeneration) return;
             console.error('Failed to load:', url);
             loaded++;
-            if (loaded === total) onAllBuffersLoaded();
+            if (loaded === total) onAllBuffersLoaded(currentGen);
           };
           xhr.send();
         });
       }
 
-      async function onAllBuffersLoaded() {
-        // Hide loading overlay
-        const overlay = document.getElementById('loading-overlay');
-        if (overlay) overlay.style.display = 'none';
-
+      async function onAllBuffersLoaded(currentGen) {
         // Set total samples from reference (or first available)
         const refBuf = state.audioPool['ref']?.buffer || Object.values(state.audioPool)[0]?.buffer;
         if (refBuf) {
@@ -1349,8 +1383,9 @@
           state.sampleRate = refBuf.sampleRate;
         }
 
-        // Wait for worklet to be ready, then send buffers
+        // Wait for worklet to be ready, then send buffers before hiding overlay
         await workletReady;
+        if (currentGen !== undefined && currentGen !== state.loadGeneration) return;
 
         const fadeLength = Math.floor(state.sampleRate * 0.005); // 5ms crossfade
         state.workletNode.port.postMessage({ type: 'setFadeLength', samples: fadeLength });
@@ -1358,6 +1393,10 @@
         for (const [key, entry] of Object.entries(state.audioPool)) {
           sendBufferToWorklet(key, entry.buffer);
         }
+
+        // Hide loading overlay once worklet has all buffers
+        const overlay = document.getElementById('loading-overlay');
+        if (overlay) overlay.style.display = 'none';
       }
 
       function stopAudio() {
@@ -1368,6 +1407,9 @@
         state.activeKey = null;
         state.isPlaying = false;
         state.playingId = null;
+        state.currentSample = 0;
+        state.lastCallbackSample = 0;
+        state.lastCallbackTime = state.audioCtx ? state.audioCtx.currentTime : 0;
         document.querySelectorAll('.play-btn').forEach(b => { b.classList.remove('active'); b.textContent = '▶'; });
         document.querySelectorAll('.sample-row').forEach(r => r.classList.remove('playing'));
         document.querySelectorAll('.mushra-slider').forEach(s => s.disabled = true);
@@ -1393,6 +1435,8 @@
             return;
           } else {
             state.isPlaying = true;
+            state.lastCallbackTime = state.audioCtx.currentTime;
+            state.lastCallbackSample = state.currentSample;
             state.workletNode.port.postMessage({ type: 'resume' });
             const btn = document.getElementById(elementId);
             if (btn) { btn.classList.add('active'); btn.textContent = '⏸'; }
@@ -1407,6 +1451,8 @@
         if (state.isPlaying && state.activeKey) {
           state.workletNode.port.postMessage({ type: 'switch', key: key });
         } else {
+          state.lastCallbackTime = state.audioCtx.currentTime;
+          state.lastCallbackSample = state.currentSample;
           state.workletNode.port.postMessage({ type: 'play', key: key });
         }
 
@@ -1478,13 +1524,14 @@
         ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
         ctx.clearRect(0, 0, w, h);
 
-        // Hide waveform for Reference (prevent visual matching)
-        if (state.activeKey === 'ref') {
+        // Hide waveform for Reference and Dry (prevent visual matching)
+        if (state.activeKey === 'ref' || state.activeKey === 'dry') {
           ctx.fillStyle = VISUAL_THEME.colors.textDim;
           ctx.font = '14px Inter, sans-serif';
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
-          ctx.fillText('Podgląd niedostępny (Referencja)', w / 2, h / 2);
+          const label = state.activeKey === 'ref' ? 'Referencja' : 'Dry';
+          ctx.fillText(`Podgląd niedostępny (${label})`, w / 2, h / 2);
 
           // Store offscreen copy
           if (!state.offscreenCanvas) {
@@ -1500,24 +1547,24 @@
           const totalEl = document.getElementById('waveform-time-total');
           if (totalEl) totalEl.textContent = formatTime(totalTime);
 
-          // Click to seek (still allow seeking?)
+          // Click to seek
           canvas.onclick = function (e) {
             const rect = canvas.getBoundingClientRect();
             const x = e.clientX - rect.left;
-            const ratio = x / rect.width;
+            const ratio = Math.max(0, Math.min(1, x / rect.width));
 
-            const newPos = Math.floor(ratio * state.totalSamples);
+            const newPos = Math.min(Math.max(0, state.totalSamples - 1), Math.floor(ratio * state.totalSamples));
             state.currentSample = newPos;
             state.lastCallbackSample = newPos;
             state.lastCallbackTime = state.audioCtx ? state.audioCtx.currentTime : 0;
 
-            // Fix: Actually seek the audio engine
             if (state.workletNode) {
               state.workletNode.port.postMessage({ type: 'seek', position: newPos });
             }
 
             drawPlayhead();
           };
+          drawPlayhead();
           return;
         }
 
@@ -1572,8 +1619,8 @@
         canvas.onclick = function (e) {
           const rect = canvas.getBoundingClientRect();
           const x = e.clientX - rect.left;
-          const ratio = x / rect.width;
-          const newPos = Math.floor(ratio * state.totalSamples);
+          const ratio = Math.max(0, Math.min(1, x / rect.width));
+          const newPos = Math.min(Math.max(0, state.totalSamples - 1), Math.floor(ratio * state.totalSamples));
           state.currentSample = newPos;
           state.lastCallbackSample = newPos;
           state.lastCallbackTime = state.audioCtx ? state.audioCtx.currentTime : 0;
@@ -1582,11 +1629,12 @@
           }
           drawPlayhead();
         };
+        drawPlayhead();
       }
 
       function getInterpolatedSample() {
         if (!state.isPlaying || !state.audioCtx || !state.totalSamples) return state.currentSample;
-        const elapsed = state.audioCtx.currentTime - state.lastCallbackTime;
+        const elapsed = Math.max(0, state.audioCtx.currentTime - state.lastCallbackTime);
         const extraSamples = Math.floor(elapsed * state.sampleRate);
         return (state.lastCallbackSample + extraSamples) % state.totalSamples;
       }
@@ -1620,6 +1668,8 @@
         ctx.shadowColor = VISUAL_THEME.playhead.shadowColor;
         ctx.shadowBlur = VISUAL_THEME.playhead.shadowBlur;
         ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke();
+        ctx.shadowBlur = 0;
+        ctx.shadowColor = 'transparent';
 
         // Time display
         const currentTime = interpolatedSample / state.sampleRate;
@@ -1706,6 +1756,7 @@
             body: JSON.stringify({
               participant: state.participant,
               config_title: config.title,
+              test_type: 'mushra',
               results: results
             })
           });
@@ -1732,25 +1783,28 @@
       async function init() {
         // Check if config.json exists (for GitHub Pages deployment)
         const params = new URLSearchParams(window.location.search);
+        const configUrl = params.get('config') || 'config.json';
 
-        if (params.has('participant')) {
-          // Direct link for participants: load config and go to welcome screen
-          try {
-            const configUrl = params.get('config') || 'config.json';
-            const resp = await fetch(configUrl);
-            if (resp.ok) {
-              config = await resp.json();
-              state.isAdmin = false;
-              showScreen('welcome');
-              document.getElementById('test-title').textContent = config.title;
-              return;
-            }
-          } catch (e) {
-            console.warn('Could not load config.json:', e);
+        try {
+          const resp = await fetch(configUrl);
+          if (resp.ok) {
+            config = await resp.json();
+            document.getElementById('cfg-title').value = config.title || '';
+            document.getElementById('cfg-webhook').value = config.webhook || '';
+            document.getElementById('cfg-randomize').value = config.randomize ? 'true' : 'false';
           }
+        } catch (e) {
+          console.warn('Could not load config.json:', e);
         }
 
-        // Admin mode
+        if (params.has('participant')) {
+          // Direct link for participants: go to welcome screen
+          state.isAdmin = false;
+          showScreen('welcome');
+          document.getElementById('test-title').textContent = config.title;
+          return;
+        }
+
         // Admin mode
         renderScenarioEditor();
       }

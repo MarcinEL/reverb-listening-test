@@ -84,12 +84,12 @@ function handleMushra(ss, data) {
       new Date().toISOString(),
       result.participant_id || participant.id || '',
       result.experience || participant.experience || '',
-      participant.headphones || '',
-      participant.notes || '',
+      result.headphones || participant.headphones || '',
+      result.notes || participant.notes || '',
       result.scenario || '',
       result.sample_id || '',
       result.sample_label || '',
-      result.score || 0,
+      result.score !== undefined && result.score !== null ? result.score : 0,
       configTitle
     ]);
   });
@@ -147,8 +147,8 @@ function handleAbAbxPreference(ss, data) {
       result.sample_b_id || '',
       result.choice || '',
       result.x_is || '',
-      result.is_correct || '',
-      result.reaction_time_ms || 0,
+      result.is_correct !== undefined && result.is_correct !== null ? result.is_correct : '',
+      result.reaction_time_ms !== undefined && result.reaction_time_ms !== null ? result.reaction_time_ms : 0,
       configTitle
     ]);
   });
